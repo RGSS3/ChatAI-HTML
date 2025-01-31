@@ -40,7 +40,7 @@
 你是一个养猫助手玲玲
 自动产生的随机数是{{js|~~(Math.random()*6)+1|}}
 
-{{context:4096}}
+{{context:8192}}
 
 ---[user:user]---
 {{input}}
@@ -57,10 +57,12 @@
                     { name: 'top_p', value: '0.7', range: '0.0-1.0' },
                     { name: 'top_a', value: '0', range: '0.0-2.0' },
                     { name: 'temperature', value: '0.95', range: '0.0-4.0' },
+                    { name: 'max_tokens', value: '300', range: '0-8192' },
                 ],
                 variables: {},
                 chatHistory: [],
-		fullscreen: true,
+		        fullscreen: true,
+                trash: [],
             };
         }
 
@@ -96,6 +98,22 @@
         // 这里我们先加载状态并初始化UI
         loadState();
         initializeUI();
+        // 如果url后面有?code=.... 那就是OpenRouter获取的新Key, 把他填入Bearer
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code) {
+            fetch("https://openrouter.ai/api/v1/auth/keys", {
+                method: "POST",
+                body: JSON.stringify({
+                    code: code,
+                })
+            }).then(response => response.json()).then(data => {
+                console.log(data);
+                state.bearer = data.key;
+                window.history.replaceState({}, document.title, window.location.pathname);
+                saveState();
+            })
+        }
 
         // 添加样式
         const style = document.createElement('style');
@@ -190,12 +208,16 @@
             #right-panel::-webkit-scrollbar-thumb:hover {
                 background-color: #94a3b8;
             }
+            .variables-control {
+	   	    	flex-direction: column;
+	   	    }
 
             /* 确保在移动设备上也能正常工作 */
             @media (max-width: 768px) {
                 #left-panel, #right-panel {
                     width: 200px; /* 在小屏幕上减小侧边栏宽度 */
                 }
+	        
             }
 
             /* 超小屏幕处理 */
@@ -276,10 +298,15 @@
                 border-radius: 0.25rem;
                 cursor: pointer;
                 font-size: 0.8rem;
-            }
+                display: inline-block 
+	   }
             
             .button:hover {
                 background: #3182ce;
+            }
+
+            .button-list {
+                margin-right: 0.2rem;
             }
 
         `;
@@ -298,6 +325,7 @@
                 <input type="text" class="text-input" id="endpoint-input" value="${state.endpoint}">
             </div>
             <div class="input-group">
+                <button id='create-key' class="button">Create Key</button>
                 <label class="input-label">Bearer Token</label>
                 <input type="password" class="text-input" id="bearer-input" value="${state.bearer}">
             </div>
@@ -328,6 +356,13 @@
 
             leftPanel.appendChild(apiSection);
             leftPanel.appendChild(paramSection);
+            document.getElementById('create-key').addEventListener('click', createKey);
+
+            async function createKey() {
+                const url = 'https://openrouter.ai/auth?callback_url=' + window.location.href;
+                saveState();
+                window.location.href = url;
+            }
 
             // 获取模型列表
             async function fetchModels() {
@@ -510,8 +545,10 @@
                 style="width: 95%; padding: 0.5rem; border: 1px solid #cbd5e0; border-radius: 0.25rem; resize: vertical; min-height: 80px;"
                 placeholder="Type your message here..."></textarea>
             <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
-                <button id="send-button" class="button">Send</button>
-	        <button id="toggle-button" class="button">Toggle</button>
+            <button id="send-button" class="button button-list">Send</button>
+	        <button id="toggle-button" class="button button-list">Toggle</button>
+            <button id="continue-button" class="button button-list">Continue</button>
+	        <button id="next-button" class="button button-list">Next</button>
             </div>
         </div>
     `;
@@ -532,6 +569,8 @@
                     sendMessage();
                 }
             })
+            document.getElementById('continue-button').addEventListener('click', continueMessage);
+            document.getElementById('next-button').addEventListener('click', nextMessage);
 
 	    
 
@@ -553,6 +592,7 @@
                 <select id="variable-select" style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                     <option value="">Select a variable</option>
                 </select>
+                <textarea id="variable-content" style="width: 100%; min-height: 100px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 1rem; display: none;"></textarea>
                 <button id="add-variable" class="button" title="Add Variable">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 5v14"></path>
@@ -580,7 +620,7 @@
                     </svg>
                 </button>
             </div>
-            <textarea id="variable-content" style="width: 100%; min-height: 100px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 1rem; display: none;"></textarea>
+            
         </div>
 
         <div class="panel-section">
@@ -652,7 +692,7 @@
             function downloadChat(aiOnly = false) {
                 // 获取标题
                 const title = document.getElementById('chat-title').value || 'chat';
-                const fileName = `${title}-${aiOnly ? 'ai-' : ''}${new Date().toISOString().slice(0, 10)}.txt`;
+                const fileName = `${title}-${aiOnly ? 'ai-' : ''}${new Date().toLocaleString().replace(/:/g, '-').replace(/ /g, '_')}.txt`;
                 
                 // 生成文本内容
                 let content = '';
@@ -703,11 +743,16 @@
 
             // 添加更新按钮的事件处理
             document.getElementById('update-variable').addEventListener('click', () => {
-                const selectedVar = document.getElementById('variable-select').value;
+                let selectedVar = document.getElementById('variable-select').value;
                 if (!selectedVar) {
                     console.warn('No variable selected');
                     return;
                 }
+                // 如果变量名已经以_result结尾，移除这部分
+                if (selectedVar.endsWith('_result')) {
+                    selectedVar = selectedVar.slice(0, -7);
+                }
+
 
                 // 直接用选中的变量名称加上"_result"作为输出变量
                 updateVariable(selectedVar, selectedVar + '_result');
@@ -770,6 +815,13 @@
             removeBtn.addEventListener('click', () => {
                 const selectedVar = select.value;
                 if (selectedVar && confirm(`Are you sure you want to delete variable "${selectedVar}"?`)) {
+                    if (state.variables[selectedVar]) {
+                        state.trash.push({
+                            name: selectedVar,
+                            content: state.variables[selectedVar],
+                            timestamp: new Date().toISOString
+                        })
+                    }
                     delete state.variables[selectedVar];
                     saveState();
                     renderVariableSelect();
@@ -796,7 +848,7 @@
             const a = document.createElement('a');
             a.href = url;
             const title = state.title || 'chat-export';
-            a.download = `${title}-${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = `${title}-${new Date().toLocaleString().replace(/:/g, '-').replace(/ /g, '_')}.json`;
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -812,6 +864,7 @@
                     state = importData.state;
                     saveState();
                     initializeUI();
+                    initializeVariables();
                 } catch (error) {
                     alert('Invalid import file');
                 }
@@ -902,6 +955,8 @@
                 msgDiv.style.padding = '0.5rem';
                 msgDiv.style.borderRadius = '0.25rem';
                 msgDiv.style.backgroundColor = msg.role === 'user' ? '#e3f2fd' : '#f5f5f5';
+                const isLast = index === state.chatHistory.length - 1;
+                const lastButton = isLast ? `<button class='resend-btn' style='border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;'>重发</button>` : '';
 
                 // 如果是loading消息，直接使用content中的HTML
                 if (msg.isLoading) {
@@ -920,6 +975,7 @@
                         <button class="edit-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">修改</button>
                         <button class="delete-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">删除</button>
                         <button class="add-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">添加</button>
+                        ${lastButton}
                     </div>
                 </div>
                 <div class="message-content">${content}</div>
@@ -929,6 +985,7 @@
                     const editBtn = msgDiv.querySelector('.edit-btn');
                     const deleteBtn = msgDiv.querySelector('.delete-btn');
                     const addBtn = msgDiv.querySelector('.add-btn');
+                    const resendBtn = msgDiv.querySelector('.resend-btn');
 
                     editBtn.addEventListener('click', () => {
                         showMessageDialog('edit', index, msg);
@@ -936,6 +993,7 @@
 
                     deleteBtn.addEventListener('click', () => {
                         if (confirm('确定要删除这条消息吗？')) {
+                            state.trash.push(state.chatHistory[index]);
                             state.chatHistory.splice(index, 1);
                             saveState();
                             renderMessages();
@@ -945,6 +1003,9 @@
                     addBtn.addEventListener('click', () => {
                         showMessageDialog('add', index);
                     });
+                    if (resendBtn) {
+                        resendBtn.addEventListener('click', resendMessage);
+                    }
                 }
                 messagesDiv.appendChild(msgDiv);
             });
@@ -960,6 +1021,16 @@
             });
         }
 
+        function resendMessage() {
+            if (state.chatHistory.length > 0 && state.chatHistory[state.chatHistory.length - 1].role == 'assistant') {
+                state.trash.push(state.chatHistory[state.chatHistory.length - 1]);
+                state.chatHistory.splice(state.chatHistory.length - 1, 1);
+                saveState();
+                nextMessage();
+            }
+        }
+
+        
         // 添加消息对话框函数
         function showMessageDialog(type, index, msg = null) {
             // 创建对话框
@@ -984,16 +1055,16 @@
         <div style="margin-bottom: 1rem">
             <label style="display: block; margin-bottom: 0.5rem">角色：</label>
             <input type="text" id="role-input" value="${msg ? msg.role : 'user'}" 
-                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">
+                style="width: 95%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">
         </div>
         <div style="margin-bottom: 1rem">
             <label style="display: block; margin-bottom: 0.5rem">角色名：</label>
-            <input type="text" id="name-input" value="${msg ? (msg.role || msg.name) : 'user'}" 
-                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">
+            <input type="text" id="name-input" value="${msg ? (msg.name || msg.role) : 'user'}" 
+                style="width: 95%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">
         </div>
         <div style="margin-bottom: 1rem">
             <label style="display: block; margin-bottom: 0.5rem">内容：</label>
-            <textarea id="content-input" style="width: 100%; height: 200px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">${msg ? msg.content : ''}</textarea>
+            <textarea id="content-input" style="width: 95%; height: 200px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">${msg ? msg.content : ''}</textarea>
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
             <button id="cancel-btn" style="padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 0.25rem; background: white; cursor: pointer;">取消</button>
@@ -1078,7 +1149,7 @@ function processContextV2(input, template) {
             
             for (let i = state.chatHistory.length - 1; i >= 0; i--) {
                 const msg = state.chatHistory[i];
-                const msgLength = msg.content.length;
+                const msgLength = msg.content.length * 2;
                 if (currentLength + msgLength > maxLength) {
                     break;
                 }
@@ -1135,12 +1206,13 @@ async function callAPI(messages, options = {}) {
     try {
         const requestBody = {
             model: state.model,
-            messages: messages.map(msg => ({
+            messages: messages.map(msg => (msg.name + msg.content ? ({
                 role: msg.role,
-                content: msg.name + ": " + msg.content
-            })),
+                content: msg.name ? msg.name + ": " + msg.content : msg.content,
+            }) : null)),
             stream
         };
+        requestBody.messages = requestBody.messages.filter(msg => msg);
 
         state.parameters.forEach(param => {
             requestBody[param.name] = parseFloat(param.value);
@@ -1277,6 +1349,102 @@ async function sendMessage() {
 
     saveState();
 }
+async function continueMessage() {
+    if (state.chatHistory.length === 0) return;
+    
+    const lastMessage = state.chatHistory[state.chatHistory.length - 1];
+    let contextMessages = state.chatHistory.slice(0, -1);
+    
+    const continuedMessage = {
+        ...lastMessage,
+        content: lastMessage.content,
+        timestamp: Date.now()
+    };
+    
+    // 处理上下文
+    let processedContext = processContextV2('');
+    let processedMessages = parseMessages(processedContext);
+    
+    processedMessages.push({
+        ...lastMessage,
+        content: lastMessage.content
+    });
+    
+    try {
+        await callAPI(processedMessages, {
+            stream: true,
+            onToken: (token) => {
+                continuedMessage.content += token;
+                state.chatHistory[state.chatHistory.length - 1] += token;
+                renderMessages();
+            },
+            onError: (error) => {
+                state.chatHistory.push({
+                    role: 'system',
+                    name: 'system',
+                    content: `Error: ${error.message}`,
+                    timestamp: Date.now()
+                });
+                renderMessages();
+            }
+        });
+    } catch (error) {
+        console.error('API call failed:', error);
+    }
+
+    saveState();
+}
+
+async function nextMessage() {
+    
+    // 处理上下文
+    let processedContext = processContextV2('');
+    let processedMessages = parseMessages(processedContext);
+
+    const assistantMessage = {
+        role: 'assistant',
+        name: state.model,
+        content: '',
+        timestamp: Date.now()
+    };
+    
+    state.chatHistory.push(assistantMessage);
+    renderMessages();
+    
+    
+    
+    // 修改最后一条消息的格式
+    const lastProcessedMessage = {
+        role: 'assistant',
+        name: '',
+        content: ``,
+    };
+    processedMessages.push(lastProcessedMessage);
+    
+    try {
+        await callAPI(processedMessages, {
+            stream: true,
+            onToken: (token) => {
+                assistantMessage.content += token;
+                renderMessages();
+            },
+            onError: (error) => {
+                state.chatHistory.pop();
+                state.chatHistory.push({
+                    role: 'system',
+                    name: 'system',
+                    content: `Error: ${error.message}`,
+                    timestamp: Date.now()
+                });
+                renderMessages();
+            }
+        });
+    } catch (error) {
+        console.error('API call failed:', error);
+    }
+
+    saveState();
+}
 
 // 辅助函数：解析消息文本为消息数组
 function parseMessages(text) {
@@ -1361,9 +1529,18 @@ async function updateVariable(inputVar, outputVar) {
             stream: false,
             onComplete: (content) => {
                 // 将结果保存到输出变量
+                const back = outputVar + '_' + 'bak_' + (new Date().toLocaleString());
+                state.variables[back] = state.variables[outputVar];
                 state.variables[outputVar] = content;
                 // 更新变量UI
                 renderVariableSelect();
+
+                const select = document.getElementById('variable-select');
+                const contentBox = document.getElementById('variable-content');
+                if (select.value === outputVar) {
+                    contentBox.value = state.variables[outputVar];
+                }
+                saveState()
             }
         });
     } catch (error) {
