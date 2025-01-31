@@ -442,6 +442,19 @@
                 modelsList = [];
             });
 
+            document.getElementById('add-parameter').addEventListener('click', () => {
+                const name = prompt('Parameter name:');
+                if (name) {
+                    state.parameters.push({
+                        name,
+                        value: '0',
+                        range: 'custom'
+                    });
+                    renderParameters();
+                    saveState();
+                }
+            });
+
             document.getElementById('bearer-input').addEventListener('change', (e) => {
                 state.bearer = e.target.value;
                 saveState();
@@ -1124,7 +1137,7 @@ async function callAPI(messages, options = {}) {
             model: state.model,
             messages: messages.map(msg => ({
                 role: msg.role,
-                content: msg.content
+                content: msg.name + ": " + msg.content
             })),
             stream
         };
@@ -1201,19 +1214,27 @@ async function callAPI(messages, options = {}) {
 
 async function sendMessage() {
     const input = document.getElementById('message-input').value.trim();
-    if (!input) return;
     document.getElementById('message-input').value = '';
-
-    // 处理输入消息
-    const userMessage = {
-        role: 'user',
-        name: 'user',
-        content: input,
-        timestamp: Date.now()
-    };
-    
-    state.chatHistory.push(userMessage);
-    renderMessages();
+    let processedContext, contextMessages;
+    try {
+        processedContext = processContextV2(input);
+        contextMessages = parseMessages(processedContext);
+    }  catch (error) {
+        console.error('API call failed:', error);
+        return;
+    }
+    if (input) {    
+        // 处理输入消息
+        const userMessage = {
+            role: 'user',
+            name: 'user',
+            content: input,
+            timestamp: Date.now()
+        };
+        
+        state.chatHistory.push(userMessage);
+        renderMessages();
+    }
 
     // 添加初始空的助手消息
     const assistantMessage = {
@@ -1227,10 +1248,10 @@ async function sendMessage() {
 
     try {
         // 处理模板得到完整上下文
-        const processedContext = processContextV2(input);
+
         
         // 解析处理后的上下文获取消息数组
-        const contextMessages = parseMessages(processedContext);
+        
 
         // 调用API
         await callAPI(contextMessages, {
@@ -1265,7 +1286,7 @@ function parseMessages(text) {
     let currentName = '';
     let currentTimestamp = null;
     
-    const messagePattern = /^---\[(\w+):(\w+)(?::(\d+))?\]---$/;
+    const messagePattern = /^---\[(\w+):([^:]+)(:(\d+))?\]---$/;
     const lines = text.split('\n');
 
     lines.forEach(line => {
@@ -1281,7 +1302,7 @@ function parseMessages(text) {
             }
             currentRole = match[1];
             currentName = match[2];
-            currentTimestamp = match[3] ? parseInt(match[3]) : Date.now();
+            currentTimestamp = match[3] ? parseInt(match[3].substring(1)) : Date.now();
             currentMessage = '';
         } else {
             currentMessage += (currentMessage ? '\n' : '') + line;
