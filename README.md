@@ -2,6 +2,8 @@
 
 这是一个轻量级的本地聊天界面实现，完全基于HTML/JavaScript运行，无需服务器。设计用于与各类AI聊天接口集成，支持变量、模板和上下文管理。
 
+Github Pages [在线地址](https://rgss3.github.io/ChatAI-HTML)
+
 ## 主要功能
 
 - 💬 纯前端聊天界面，完全本地运行
