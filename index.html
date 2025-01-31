@@ -951,7 +951,12 @@
                 <div class="message-content">${msg.content}</div>
             `;
                 } else {
-                    const content = marked.parse(msg.content);
+                    let content;
+                    try {
+                        content = marked.parse(msg.content);
+                    } catch (e) {
+                        content = msg.content;
+                    }
                     msgDiv.innerHTML = `
                 <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center;">
                     <span>${msg.name} - ${new Date(msg.timestamp).toLocaleString()}</span>
@@ -1359,7 +1364,7 @@ async function continueMessage() {
             stream: true,
             onToken: (token) => {
                 continuedMessage.content += token;
-                state.chatHistory[state.chatHistory.length - 1] += token;
+                state.chatHistory[state.chatHistory.length - 1].content = continuedMessage.content;
                 renderMessages();
             },
             onError: (error) => {
