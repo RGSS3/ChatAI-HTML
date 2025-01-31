@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Chat Interface</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+    <style>
+        #chat-area code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.8em;
+        }
+
+        #chat-area p code {
+            background-color: rgba(175, 184, 193, 0.2);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+            font-size: 0.85em;
+        }
+
+
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div id="left-panel"></div>
+        <div id="chat-area"></div>
+        <div id="right-panel"></div>
+    </div>
+    <script>
+        // 常量定义
+        const defaultEndpoint = 'https://openrouter.ai/api';
+        const defaultModel = 'anthropic/claude-3.5-sonnet';
+        const defaultContext = `---[system:system]---
+你是一个养猫助手玲玲
+自动产生的随机数是{{js|~~(Math.random()*6)+1|}}
+
+{{context:4096}}
+
+---[user:user]---
+{{input}}
+`;
+        function defaultState() {
+            return {
+                endpoint: defaultEndpoint,
+                model: defaultModel,
+                context: defaultContext,
+                bearer: '', // 添加bearer token
+                title: '',
+                parameters: [
+                    { name: 'top_k', value: '50', range: '0-100' },
+                    { name: 'top_p', value: '0.7', range: '0.0-1.0' },
+                    { name: 'top_a', value: '0', range: '0.0-2.0' },
+                    { name: 'temperature', value: '0.95', range: '0.0-4.0' },
+                ],
+                variables: {},
+                chatHistory: [],
+		fullscreen: true,
+            };
+        }
+
+
+        // 初始化状态
+        let state = defaultState();
+
+        // 从localStorage加载状态
+        function loadState() {
+            const savedState = localStorage.getItem('chatState');
+            if (savedState) {
+                state = JSON.parse(savedState);
+            }
+        }
+
+        // 保存状态到localStorage
+        function saveState() {
+            localStorage.setItem('chatState', JSON.stringify(state));
+        }
+
+        // 初始化界面
+        function initializeUI() {
+            document.querySelector('#app').innerHTML = `
+                <div id="left-panel"></div>
+                <div id="chat-area"></div>
+                <div id="right-panel"></div>
+            `
+            initializeLeftPanel();
+            initializeChatArea();
+            initializeRightPanel();
+        }
+
+        // 这里我们先加载状态并初始化UI
+        loadState();
+        initializeUI();
+
+        // 添加样式
+        const style = document.createElement('style');
+        style.textContent = `
+            #app {
+                display: flex;
+                grid-template-columns: 300px 1fr 300px;
+                height: 100vh;
+                font-family: system-ui, -apple-system, sans-serif;
+            }
+            
+            #left-panel, #right-panel {
+                padding: 1rem;
+                background: #f8f9fa;
+                border-right: 1px solid #dee2e6;
+                overflow-y: auto;
+            }
+            
+            #chat-area {
+                display: flex;
+                flex-direction: column;
+                background: white;
+            }
+            body, html {
+                margin: 0;
+                padding: 0;
+            }
+            #app {
+                width: 100vw;
+                height: 100vh;
+                overflow: hidden; /* 防止整体出现滚动条 */
+            }
+
+            #left-panel {
+                width: 250px; /* 或其他固定宽度 */
+                height: 100vh;
+                overflow-y: auto; /* 允许垂直滚动 */
+                overflow-x: hidden; /* 禁止水平滚动 */
+                border-right: 1px solid #e5e7eb;
+                background: #f9fafb;
+                /* 自定义滚动条样式 */
+                scrollbar-width: thin; /* Firefox */
+                scrollbar-color: #cbd5e1 transparent; /* Firefox */
+            }
+
+            #chat-area {
+                flex: 1; /* 占据剩余空间 */
+                height: 100vh;
+                overflow-y: auto;
+                overflow-x: hidden;
+                background: #ffffff;
+                /* 自定义滚动条样式 */
+                scrollbar-width: thin;
+                scrollbar-color: #cbd5e1 transparent;
+            }
+
+            #right-panel {
+                width: 300px; /* 或其他固定宽度 */
+                height: 100vh;
+                overflow-y: auto;
+                overflow-x: hidden;
+                border-left: 1px solid #e5e7eb;
+                background: #f9fafb;
+                /* 自定义滚动条样式 */
+                scrollbar-width: thin;
+                scrollbar-color: #cbd5e1 transparent;
+            }
+
+            /* Webkit (Chrome, Safari, Edge) 滚动条样式 */
+            #left-panel::-webkit-scrollbar,
+            #chat-area::-webkit-scrollbar,
+            #right-panel::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            #left-panel::-webkit-scrollbar-track,
+            #chat-area::-webkit-scrollbar-track,
+            #right-panel::-webkit-scrollbar-track {
+                background: transparent;
+            }
+
+            #left-panel::-webkit-scrollbar-thumb,
+            #chat-area::-webkit-scrollbar-thumb,
+            #right-panel::-webkit-scrollbar-thumb {
+                background-color: #cbd5e1;
+                border-radius: 3px;
+            }
+
+            /* 鼠标悬停时的滚动条样式 */
+            #left-panel::-webkit-scrollbar-thumb:hover,
+            #chat-area::-webkit-scrollbar-thumb:hover,
+            #right-panel::-webkit-scrollbar-thumb:hover {
+                background-color: #94a3b8;
+            }
+
+            /* 确保在移动设备上也能正常工作 */
+            @media (max-width: 768px) {
+                #left-panel, #right-panel {
+                    width: 200px; /* 在小屏幕上减小侧边栏宽度 */
+                }
+            }
+
+            /* 超小屏幕处理 */
+            @media (max-width: 640px) {
+                #left-panel, #right-panel {
+                    display: none; /* 或其他处理方式 */
+                }
+                #chat-area {
+                    width: 100%;
+                }
+            }
+            
+            .panel-section {
+                margin-bottom: 1.5rem;
+            }
+            
+            .panel-title {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-bottom: 0.5rem;
+                color: #1a1a1a;
+            }
+            
+            .input-group {
+                margin-bottom: 1rem;
+            }
+            
+            .input-label {
+                display: block;
+                margin-bottom: 0.3rem;
+                color: #4a5568;
+                font-size: 0.9rem;
+            }
+            
+            .text-input {
+                width: 100%;
+                padding: 0.5rem;
+                border: 1px solid #cbd5e0;
+                border-radius: 0.25rem;
+                font-size: 0.9rem;
+            }
+            
+            .parameter-item {
+                display: flex;
+                align-items: center;
+                padding: 0.5rem;
+                background: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 0.25rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            .parameter-name {
+                flex: 1;
+                font-size: 0.9rem;
+            }
+            
+            .parameter-value {
+                width: 80px;
+                text-align: right;
+                padding: 0.2rem;
+                border: 1px solid #e2e8f0;
+                border-radius: 0.25rem;
+                font-size: 0.9rem;
+            }
+            
+            .parameter-range {
+                font-size: 0.8rem;
+                color: #718096;
+                margin-left: 0.5rem;
+            }
+            
+            .button {
+                padding: 0.3rem 0.3rem;
+                background: #4299e1;
+                color: white;
+                border: none;
+                border-radius: 0.25rem;
+                cursor: pointer;
+                font-size: 0.8rem;
+            }
+            
+            .button:hover {
+                background: #3182ce;
+            }
+
+        `;
+        document.head.appendChild(style);
+
+        function initializeLeftPanel() {
+            const leftPanel = document.getElementById('left-panel');
+
+            // API设置区域
+            const apiSection = document.createElement('div');
+            apiSection.className = 'panel-section';
+            apiSection.innerHTML = `
+            <div class="panel-title">API Settings</div>
+            <div class="input-group">
+                <label class="input-label">API Endpoint</label>
+                <input type="text" class="text-input" id="endpoint-input" value="${state.endpoint}">
+            </div>
+            <div class="input-group">
+                <label class="input-label">Bearer Token</label>
+                <input type="password" class="text-input" id="bearer-input" value="${state.bearer}">
+            </div>
+            <div class="input-group">
+                <label class="input-label">Model</label>
+                <div class="model-select-container" style="position: relative;">
+                    <input type="text" class="text-input" id="model-search" 
+                        value="${state.model}" 
+                        placeholder="Search model..."
+                        autocomplete="off">
+                    <div id="model-dropdown" style="display: none; position: absolute; 
+                        top: 100%; left: 0; right: 0; max-height: 200px; 
+                        overflow-y: auto; background: white; border: 1px solid #ddd; 
+                        border-radius: 4px; z-index: 1000;">
+                    </div>
+                </div>
+            </div>
+        `;
+
+            // 参数设置区域代码保持不变...
+            const paramSection = document.createElement('div');
+            paramSection.className = 'panel-section';
+            paramSection.innerHTML = `
+            <div class="panel-title">Parameters</div>
+            <div id="parameters-list"></div>
+            <button class="button" id="add-parameter">Add Parameter</button>
+        `;
+
+            leftPanel.appendChild(apiSection);
+            leftPanel.appendChild(paramSection);
+
+            // 获取模型列表
+            async function fetchModels() {
+                try {
+                    const endpoint = document.getElementById('endpoint-input').value;
+                    const bearer = document.getElementById('bearer-input').value;
+
+                    const response = await fetch(`${endpoint}/v1/models`, {
+                        headers: {
+                            'Authorization': `Bearer ${bearer}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API Error: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    return data.data || [];
+                } catch (error) {
+                    console.error('Error fetching models:', error);
+                    return [];
+                }
+            }
+
+            // 渲染模型下拉列表
+            function renderModelDropdown(models, searchText) {
+                const dropdown = document.getElementById('model-dropdown');
+                dropdown.innerHTML = '';
+
+                // 过滤模型
+                const filteredModels = models.filter(model =>
+                    model.id.toLowerCase().includes(searchText.toLowerCase())
+                );
+
+                if (filteredModels.length === 0) {
+                    dropdown.style.display = 'none';
+                    return;
+                }
+
+                filteredModels.forEach(model => {
+                    const div = document.createElement('div');
+                    div.className = 'model-option';
+                    div.textContent = model.id;
+                    div.style.cssText = 'padding: 8px 12px; cursor: pointer; hover:background-color: #f5f5f5;';
+
+                    div.addEventListener('mouseover', () => {
+                        div.style.backgroundColor = '#f5f5f5';
+                    });
+
+                    div.addEventListener('mouseout', () => {
+                        div.style.backgroundColor = 'white';
+                    });
+
+                    div.addEventListener('click', () => {
+                        const modelInput = document.getElementById('model-search');
+                        modelInput.value = model.id;
+                        state.model = model.id;
+                        saveState();
+                        dropdown.style.display = 'none';
+                    });
+
+                    dropdown.appendChild(div);
+                });
+
+                dropdown.style.display = 'block';
+            }
+
+            let modelsList = [];
+            let searchTimeout;
+
+            // 模型搜索输入处理
+            const modelSearch = document.getElementById('model-search');
+            modelSearch.addEventListener('input', async (e) => {
+                const searchText = e.target.value;
+
+                // 如果列表为空，获取模型列表
+                if (modelsList.length === 0) {
+                    modelsList = await fetchModels();
+                }
+
+                // 防抖处理
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    renderModelDropdown(modelsList, searchText);
+                }, 300);
+            });
+
+            // 点击外部关闭下拉框
+            document.addEventListener('click', (e) => {
+                const dropdown = document.getElementById('model-dropdown');
+                const modelSearch = document.getElementById('model-search');
+
+                if (!modelSearch.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.style.display = 'none';
+                }
+            });
+
+            // 当焦点到输入框时，显示所有模型
+            modelSearch.addEventListener('focus', async () => {
+                if (modelsList.length === 0) {
+                    modelsList = await fetchModels();
+                }
+                renderModelDropdown(modelsList, modelSearch.value);
+            });
+
+            // 其他事件监听保持不变...
+            document.getElementById('endpoint-input').addEventListener('change', (e) => {
+                state.endpoint = e.target.value;
+                saveState();
+                // 清空模型列表，因为endpoint改变了
+                modelsList = [];
+            });
+
+            document.getElementById('bearer-input').addEventListener('change', (e) => {
+                state.bearer = e.target.value;
+                saveState();
+                // 清空模型列表，因为token改变了
+                modelsList = [];
+            });
+
+            // 渲染参数列表
+            renderParameters();
+        }
+
+        // 渲染参数列表
+        function renderParameters() {
+            const parametersList = document.getElementById('parameters-list');
+            parametersList.innerHTML = '';
+
+            state.parameters.forEach((param, index) => {
+                const paramItem = document.createElement('div');
+                paramItem.className = 'parameter-item';
+                paramItem.innerHTML = `
+                        <span class="parameter-name">${param.name}</span>
+                        <input type="text" class="parameter-value" value="${param.value}">
+                        <span class="parameter-range">${param.range}</span>
+                        <button class="delete-param" data-index="${index}">×</button>
+                    `;
+                parametersList.appendChild(paramItem);
+
+                // 添加参数值更改事件
+                const valueInput = paramItem.querySelector('.parameter-value');
+                valueInput.addEventListener('change', (e) => {
+                    state.parameters[index].value = e.target.value;
+                    saveState();
+                });
+
+                // 添加删除按钮事件
+                const deleteBtn = paramItem.querySelector('.delete-param');
+                deleteBtn.addEventListener('click', () => {
+                    state.parameters.splice(index, 1);
+                    renderParameters();
+                    saveState();
+                });
+            });
+        }
+
+
+        // 聊天区域初始化
+        function initializeChatArea() {
+            const chatArea = document.getElementById('chat-area');
+            chatArea.innerHTML = `
+        <div id="messages" style="flex: 1; overflow-y: auto; padding: 1rem;"></div>
+        <div style="padding: 1rem; border-top: 1px solid #dee2e6;">
+            <textarea id="message-input" 
+                style="width: 95%; padding: 0.5rem; border: 1px solid #cbd5e0; border-radius: 0.25rem; resize: vertical; min-height: 80px;"
+                placeholder="Type your message here..."></textarea>
+            <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
+                <button id="send-button" class="button">Send</button>
+	        <button id="toggle-button" class="button">Toggle</button>
+            </div>
+        </div>
+    `;
+	    document.getElementById('toggle-button').addEventListener('click', (e) => {
+
+		state.fullscreen = !state.fullscreen;
+		saveState();
+		const word = state.fullscreen ? 'block' : 'none';
+		document.getElementById('left-panel').style.display = 
+		document.getElementById('right-panel').style.display = word;
+
+
+	    });
+
+            document.getElementById('send-button').addEventListener('click', sendMessage);
+            document.getElementById('message-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    sendMessage();
+                }
+            })
+
+	    
+
+            renderMessages();
+        }
+
+        // 右侧面板初始化
+        function initializeRightPanel() {
+            const rightPanel = document.getElementById('right-panel');
+            rightPanel.innerHTML = `
+        <div class="panel-section">
+            <div class="panel-title">Context Template</div>
+            <textarea id="context-template" class="text-input" style="min-height: 200px;">${state.context}</textarea>
+        </div>
+        
+        <div class="panel-section">
+            <div class="panel-title">Custom Variables</div>
+            <div class="variables-control" style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <select id="variable-select" style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Select a variable</option>
+                </select>
+                <button id="add-variable" class="button" title="Add Variable">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 5v14"></path>
+                        <path d="M5 12h14"></path>
+                    </svg>
+                </button>
+                <button id="execute-variable" class="button" title="Execute Variable">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                </button>
+                <button id="update-variable" class="button" title="Update Variable">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 2v6h-6"></path>
+                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                        <path d="M3 22v-6h6"></path>
+                        <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                    </svg>
+                </button>
+                <button id="remove-variable" class="button" style="background: #ff4444;" title="Remove Variable">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 6h18"></path>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            </div>
+            <textarea id="variable-content" style="width: 100%; min-height: 100px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 1rem; display: none;"></textarea>
+        </div>
+
+        <div class="panel-section">
+            <div class="panel-title">Chat Import/Export</div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                Chat title
+                <input id="chat-title" class="text-input" style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" placeholder="Chat Title">
+                <button id="export-chat" class="button">Export Chat</button>
+                <input type="file" id="import-file" style="display: none;">
+                <button id="import-chat" class="button">Import Chat</button>
+                <button id="new-chat" class="button">New Chat</button>
+                <button id='clear-chat' class="button">Clear Chat</button>
+                <button id='download-ai' class="button">Download AI Text only</button>
+                <button id='download-all' class="button">Download All Text</button>
+            </div>
+        </div>
+    `;
+
+            document.querySelector("#chat-title").value = state.title;
+            document.querySelector("#chat-title").addEventListener('change', (e) => {
+                state.title = e.target.value;
+                saveState()
+            });
+            
+            // 上下文模板监听
+            document.getElementById('context-template').addEventListener('change', (e) => {
+                state.context = e.target.value;
+                saveState();
+            });
+
+            // 变量相关事件
+
+            // 导入导出事件
+            document.getElementById('export-chat').addEventListener('click', exportChat);
+            document.getElementById('import-chat').addEventListener('click', () => {
+                document.getElementById('import-file').click();
+            });
+            document.getElementById('import-file').addEventListener('change', importChat);
+            document.querySelector("#new-chat").addEventListener('click', () => {
+                if (confirm('Start a new chat? This will clear all current messages and reset settings to defaults.')) {
+                    // 重置状态到默认值
+                    state = defaultState();
+                    saveState();
+                    initializeUI();
+                }
+            });
+
+            document.querySelector("#clear-chat").addEventListener('click', () => {
+                if (confirm('Clear all messages?')) {
+                    state.chatHistory = [];
+                    saveState();
+                    renderMessages()
+                }
+            });
+
+                        // 获取纯文本内容的函数
+            function getMessageText(message, aiOnly = false) {
+                if (aiOnly && message.role !== 'assistant') return '';
+                
+                let text = '';
+                if (message.name) {
+                    text += `[${message.name}]\n`;
+                }
+                text += `${message.content}\n\n`;
+                return text;
+            }
+
+            // 导出对话内容为文本文件
+            function downloadChat(aiOnly = false) {
+                // 获取标题
+                const title = document.getElementById('chat-title').value || 'chat';
+                const fileName = `${title}-${aiOnly ? 'ai-' : ''}${new Date().toISOString().slice(0, 10)}.txt`;
+                
+                // 生成文本内容
+                let content = '';
+                for (const message of state.chatHistory) {
+                    const processedText = processContextV2(state.lastInput || '', message.content);
+                    content += getMessageText({...message, content: processedText}, aiOnly);
+                }
+                
+                // 创建并下载文件
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            // 添加下载按钮事件监听器
+            document.getElementById('download-ai').addEventListener('click', () => downloadChat(true));
+            document.getElementById('download-all').addEventListener('click', () => downloadChat(false));
+
+            // 导出按钮也改用同样的标题
+            document.getElementById('export-chat').addEventListener('click', exportChat);
+
+            
+
+            // 添加执行按钮的事件处理
+            // 添加执行按钮的事件处理
+            document.getElementById('execute-variable').addEventListener('click', () => {
+                const selectedVar = document.getElementById('variable-select').value;
+                if (!selectedVar) {
+                    console.warn('No variable selected');
+                    return;
+                }
+
+                // 获取变量内容并处理
+                const content = state.variables[selectedVar];
+                if (!content) {
+                    console.warn('Selected variable is empty');
+                    return;
+                }
+
+                // 直接使用现有的processContextV2处理变量内容
+                const processedContent = processContextV2(state.lastInput || '', content);
+                console.log('Executed variable result:', processedContent);
+            });
+
+            // 添加更新按钮的事件处理
+            document.getElementById('update-variable').addEventListener('click', () => {
+                const selectedVar = document.getElementById('variable-select').value;
+                if (!selectedVar) {
+                    console.warn('No variable selected');
+                    return;
+                }
+
+                // 直接用选中的变量名称加上"_result"作为输出变量
+                updateVariable(selectedVar, selectedVar + '_result');
+            });
+        }
+
+        // 渲染变量下拉框
+        
+
+        // 变量相关功能
+        function initializeVariables() {
+            const select = document.getElementById('variable-select');
+            const content = document.getElementById('variable-content');
+            const addBtn = document.getElementById('add-variable');
+            const removeBtn = document.getElementById('remove-variable');
+
+            
+
+            // 选择变量时更新内容
+            select.addEventListener('change', () => {
+                const selectedVar = select.value;
+                if (selectedVar) {
+                    content.style.display = 'block';
+                    content.value = state.variables[selectedVar];
+                    removeBtn.style.display = 'block';
+                } else {
+                    content.style.display = 'none';
+                    removeBtn.style.display = 'none';
+                }
+            });
+
+            // 内容变化时保存
+            content.addEventListener('change', () => {
+                const selectedVar = select.value;
+                if (selectedVar) {
+                    state.variables[selectedVar] = content.value;
+                    saveState();
+                }
+            });
+
+            // 添加新变量
+            addBtn.addEventListener('click', () => {
+                const name = prompt('Enter variable name:');
+                if (name && name.trim()) {
+                    if (state.variables[name]) {
+                        alert('Variable already exists!');
+                        return;
+                    }
+                    state.variables[name] = '';
+                    saveState();
+                    renderVariableSelect();
+                    select.value = name;
+                    content.style.display = 'block';
+                    content.value = '';
+                    removeBtn.style.display = 'block';
+                }
+            });
+
+            // 删除变量
+            removeBtn.addEventListener('click', () => {
+                const selectedVar = select.value;
+                if (selectedVar && confirm(`Are you sure you want to delete variable "${selectedVar}"?`)) {
+                    delete state.variables[selectedVar];
+                    saveState();
+                    renderVariableSelect();
+                    content.style.display = 'none';
+                    removeBtn.style.display = 'none';
+                }
+            });
+
+            // 初始渲染
+            renderVariableSelect();
+        }
+
+
+        initializeVariables();
+
+        // 导入导出功能
+        function exportChat() {
+            const exportData = {
+                state: state,
+                version: '1.0'
+            };
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const title = state.title || 'chat-export';
+            a.download = `${title}-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importChat(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const importData = JSON.parse(e.target.result);
+                    state = importData.state;
+                    saveState();
+                    initializeUI();
+                } catch (error) {
+                    alert('Invalid import file');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // 上下文处理
+
+        // 标记所有代码块
+        marked.setOptions({
+            highlight: function (code, language) {
+                if (language && hljs.getLanguage(language)) {
+                    return hljs.highlight(code, { language }).value;
+                }
+                return hljs.highlightAuto(code).value;
+            },
+            breaks: true,
+            gfm: true
+        });
+
+
+
+
+
+        // 添加loading动画样式
+        const loadingStyle = document.createElement('style');
+        loadingStyle.textContent = `
+    .loading-dots {
+        display: inline-block;
+        position: relative;
+        width: 50px;
+        height: 20px;
+    }
+    
+    .loading-dots div {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #666;
+        animation-timing-function: cubic-bezier(0, 1, 1, 0);
+    }
+    
+    .loading-dots div:nth-child(1) {
+        left: 0;
+        animation: loading1 0.6s infinite;
+    }
+    
+    .loading-dots div:nth-child(2) {
+        left: 16px;
+        animation: loading2 0.6s infinite;
+    }
+    
+    .loading-dots div:nth-child(3) {
+        left: 32px;
+        animation: loading2 0.6s infinite;
+    }
+    
+    @keyframes loading1 {
+        0% {
+            transform: scale(0);
+        }
+        100% {
+            transform: scale(1);
+        }
+    }
+    
+    @keyframes loading2 {
+        0% {
+            transform: translate(0, 0);
+        }
+        100% {
+            transform: translate(16px, 0);
+        }
+    }
+`;
+        document.head.appendChild(loadingStyle);
+        
+        function renderMessages() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+
+            state.chatHistory.forEach((msg, index) => {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = `message ${msg.role}`;
+                msgDiv.style.marginBottom = '1rem';
+                msgDiv.style.padding = '0.5rem';
+                msgDiv.style.borderRadius = '0.25rem';
+                msgDiv.style.backgroundColor = msg.role === 'user' ? '#e3f2fd' : '#f5f5f5';
+
+                // 如果是loading消息，直接使用content中的HTML
+                if (msg.isLoading) {
+                    msgDiv.innerHTML = `
+                <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center;">
+                    <span>${msg.name} - ${new Date(msg.timestamp).toLocaleString()}</span>
+                </div>
+                <div class="message-content">${msg.content}</div>
+            `;
+                } else {
+                    const content = marked.parse(msg.content);
+                    msgDiv.innerHTML = `
+                <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center;">
+                    <span>${msg.name} - ${new Date(msg.timestamp).toLocaleString()}</span>
+                    <div class="message-actions" style="display: flex; gap: 0.5rem;">
+                        <button class="edit-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">修改</button>
+                        <button class="delete-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">删除</button>
+                        <button class="add-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">添加</button>
+                    </div>
+                </div>
+                <div class="message-content">${content}</div>
+            `;
+
+                    // 添加事件监听器
+                    const editBtn = msgDiv.querySelector('.edit-btn');
+                    const deleteBtn = msgDiv.querySelector('.delete-btn');
+                    const addBtn = msgDiv.querySelector('.add-btn');
+
+                    editBtn.addEventListener('click', () => {
+                        showMessageDialog('edit', index, msg);
+                    });
+
+                    deleteBtn.addEventListener('click', () => {
+                        if (confirm('确定要删除这条消息吗？')) {
+                            state.chatHistory.splice(index, 1);
+                            saveState();
+                            renderMessages();
+                        }
+                    });
+
+                    addBtn.addEventListener('click', () => {
+                        showMessageDialog('add', index);
+                    });
+                }
+                messagesDiv.appendChild(msgDiv);
+            });
+
+            // 滚动到底部
+            setTimeout(() => {
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }, 0);
+
+            // 代码高亮
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        }
+
+        // 添加消息对话框函数
+        function showMessageDialog(type, index, msg = null) {
+            // 创建对话框
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        z-index: 1000;
+        width: 80%;
+        max-width: 500px;
+    `;
+
+            // 对话框内容
+            dialog.innerHTML = `
+        <h3 style="margin: 0 0 1rem 0">${type === 'edit' ? '修改消息' : '添加消息'}</h3>
+        <div style="margin-bottom: 1rem">
+            <label style="display: block; margin-bottom: 0.5rem">角色：</label>
+            <input type="text" id="role-input" value="${msg ? msg.role : 'user'}" 
+                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">
+        </div>
+        <div style="margin-bottom: 1rem">
+            <label style="display: block; margin-bottom: 0.5rem">角色名：</label>
+            <input type="text" id="name-input" value="${msg ? (msg.role || msg.name) : 'user'}" 
+                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">
+        </div>
+        <div style="margin-bottom: 1rem">
+            <label style="display: block; margin-bottom: 0.5rem">内容：</label>
+            <textarea id="content-input" style="width: 100%; height: 200px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">${msg ? msg.content : ''}</textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button id="cancel-btn" style="padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 0.25rem; background: white; cursor: pointer;">取消</button>
+            <button id="confirm-btn" style="padding: 0.5rem 1rem; border: none; border-radius: 0.25rem; background: #1976d2; color: white; cursor: pointer;">确定</button>
+        </div>
+    `;
+
+            // 创建遮罩
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 999;
+    `;
+
+            // 添加到文档
+            document.body.appendChild(overlay);
+            document.body.appendChild(dialog);
+
+            // 事件处理
+            const cancelBtn = dialog.querySelector('#cancel-btn');
+            const confirmBtn = dialog.querySelector('#confirm-btn');
+            const roleInput = dialog.querySelector('#role-input');
+            const contentInput = dialog.querySelector('#content-input');
+            const nameInput = dialog.querySelector('#name-input');
+
+            cancelBtn.addEventListener('click', () => {
+                overlay.remove();
+                dialog.remove();
+            });
+
+            confirmBtn.addEventListener('click', () => {
+                const role = roleInput.value.trim();
+                const content = contentInput.value.trim();
+                const name = nameInput.value.trim();
+
+                if (!role || !content) {
+                    alert('角色和内容不能为空');
+                    return;
+                }
+
+                if (type === 'edit') {
+                    // 修改消息
+                    state.chatHistory[index] = {
+                        role,
+                        content,
+                        name,
+                        timestamp: Date.now()
+                    };
+                } else {
+                    // 添加消息
+                    state.chatHistory.splice(index, 0, {
+                        role,
+                        content,
+                        name,
+                        timestamp: Date.now()
+                    });
+                }
+
+                saveState();
+                renderMessages();
+                overlay.remove();
+                dialog.remove();
+            });
+        }
+
+function processContextV2(input, template) {
+    // 如果没有提供模板，使用默认模板
+    template = template || state.context;
+    
+    const processors = {
+        input: () => input,
+        
+        context: (maxLength) => {
+            let historyText = '';
+            let currentLength = 0;
+            maxLength = parseInt(maxLength) || Infinity;
+            
+            for (let i = state.chatHistory.length - 1; i >= 0; i--) {
+                const msg = state.chatHistory[i];
+                const msgLength = msg.content.length;
+                if (currentLength + msgLength > maxLength) {
+                    break;
+                }
+                historyText = `---[${msg.role}:${msg.name}:${msg.timestamp}]---\n${msg.content}\n\n${historyText}`;
+                currentLength += msgLength;
+            }
+            return historyText.trim();
+        },
+
+        var: (varName) => state.variables[varName] || '',
+
+        js: (code) => {
+            try {
+                return eval(code);
+            } catch (error) {
+                console.error('JavaScript evaluation error:', error);
+                return `[JS Error: ${error.message}]`;
+            }
+        }
+    };
+
+    function processAllMarkers(text) {
+        let previousText;
+        do {
+            previousText = text;
+            
+            text = text.replace(/{{js\|([\s\S]*?)\|}}/g, (match, code) => {
+                return processors.js(code);
+            });
+
+            text = text.replace(/{{(\w+)(?::([^}]+))?}}/g, (match, type, param) => {
+                if (processors[type]) {
+                    return processors[type](param);
+                }
+                return match;
+            });
+
+        } while (text !== previousText && text.includes('{{'));
+        
+        return text;
+    }
+
+    return processAllMarkers(template);
+}
+
+async function callAPI(messages, options = {}) {
+    const {
+        stream = true,
+        onToken = null,
+        onComplete = null,
+        onError = null
+    } = options;
+
+    try {
+        const requestBody = {
+            model: state.model,
+            messages: messages.map(msg => ({
+                role: msg.role,
+                content: msg.content
+            })),
+            stream
+        };
+
+        state.parameters.forEach(param => {
+            requestBody[param.name] = parseFloat(param.value);
+        });
+
+        const response = await fetch(state.endpoint + '/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.bearer}`,
+                'X-Title': 'UYP App',
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.status}`);
+        }
+
+        if (stream) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let fullContent = '';
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                while (true) {
+                    const newlineIndex = buffer.indexOf('\n');
+                    if (newlineIndex === -1) break;
+
+                    const line = buffer.slice(0, newlineIndex);
+                    buffer = buffer.slice(newlineIndex + 1);
+
+                    if (line.trim() === '' || line.trim() === 'data: [DONE]') continue;
+
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.slice(6);
+                        try {
+                            const json = JSON.parse(jsonStr);
+                            if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+                                const token = json.choices[0].delta.content;
+                                fullContent += token;
+                                if (onToken) onToken(token, fullContent);
+                            }
+                        } catch (e) {
+                            console.warn('Failed to parse JSON:', jsonStr);
+                        }
+                    }
+                }
+            }
+            
+            if (onComplete) onComplete(fullContent);
+            return fullContent;
+        } else {
+            const json = await response.json();
+            const content = json.choices[0].message.content;
+            if (onComplete) onComplete(content);
+            return content;
+        }
+
+    } catch (error) {
+        if (onError) onError(error);
+        throw error;
+    }
+}
+
+async function sendMessage() {
+    const input = document.getElementById('message-input').value.trim();
+    if (!input) return;
+    document.getElementById('message-input').value = '';
+
+    // 处理输入消息
+    const userMessage = {
+        role: 'user',
+        name: 'user',
+        content: input,
+        timestamp: Date.now()
+    };
+    
+    state.chatHistory.push(userMessage);
+    renderMessages();
+
+    // 添加初始空的助手消息
+    const assistantMessage = {
+        role: 'assistant',
+        name: state.model,
+        content: '',
+        timestamp: Date.now()
+    };
+    state.chatHistory.push(assistantMessage);
+    renderMessages();
+
+    try {
+        // 处理模板得到完整上下文
+        const processedContext = processContextV2(input);
+        
+        // 解析处理后的上下文获取消息数组
+        const contextMessages = parseMessages(processedContext);
+
+        // 调用API
+        await callAPI(contextMessages, {
+            stream: true,
+            onToken: (token) => {
+                assistantMessage.content += token;
+                renderMessages();
+            },
+            onError: (error) => {
+                state.chatHistory.pop(); // 移除助手消息
+                state.chatHistory.push({
+                    role: 'system',
+                    name: 'system',
+                    content: `Error: ${error.message}`,
+                    timestamp: Date.now()
+                });
+                renderMessages();
+            }
+        });
+    } catch (error) {
+        console.error('API call failed:', error);
+    }
+
+    saveState();
+}
+
+// 辅助函数：解析消息文本为消息数组
+function parseMessages(text) {
+    const messages = [];
+    let currentMessage = '';
+    let currentRole = '';
+    let currentName = '';
+    let currentTimestamp = null;
+    
+    const messagePattern = /^---\[(\w+):(\w+)(?::(\d+))?\]---$/;
+    const lines = text.split('\n');
+
+    lines.forEach(line => {
+        const match = line.match(messagePattern);
+        if (match) {
+            if (currentMessage && currentRole) {
+                messages.push({
+                    role: currentRole,
+                    name: currentName,
+                    content: currentMessage.trim(),
+                    timestamp: currentTimestamp || Date.now()
+                });
+            }
+            currentRole = match[1];
+            currentName = match[2];
+            currentTimestamp = match[3] ? parseInt(match[3]) : Date.now();
+            currentMessage = '';
+        } else {
+            currentMessage += (currentMessage ? '\n' : '') + line;
+        }
+    });
+
+    if (currentMessage && currentRole) {
+        messages.push({
+            role: currentRole,
+            name: currentName,
+            content: currentMessage.trim(),
+            timestamp: currentTimestamp || Date.now()
+        });
+    }
+
+    return messages;
+}
+function renderVariableSelect() {
+    const select = document.getElementById('variable-select');
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">Select a variable</option>';
+
+    Object.keys(state.variables).forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+    });
+
+    // 保持之前选中的值
+    if (currentValue && state.variables[currentValue]) {
+        select.value = currentValue;
+    }
+
+    // 如果没有变量，隐藏内容框和删除按钮
+    if (Object.keys(state.variables).length === 0) {
+        content.style.display = 'none';
+        removeBtn.style.display = 'none';
+    }
+}
+
+async function updateVariable(inputVar, outputVar) {
+    const inputContent = state.variables[inputVar];
+    if (!inputContent) {
+        console.error(`Input variable ${inputVar} not found`);
+        return;
+    }
+
+    try {
+        // 处理输入变量内容作为模板
+        const processedContent = processContextV2(state.lastInput || '', inputContent);
+        const messages = parseMessages(processedContent);
+        
+        // 调用API获取结果
+        const result = await callAPI(messages, {
+            stream: false,
+            onComplete: (content) => {
+                // 将结果保存到输出变量
+                state.variables[outputVar] = content;
+                // 更新变量UI
+                renderVariableSelect();
+            }
+        });
+    } catch (error) {
+        console.error('Variable execution error:', error);
+    }
+}
+
+    </script>
+</body>
+
+</html>
