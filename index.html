@@ -1679,6 +1679,7 @@ function updateUIState(isSignedIn) {
 
 let accessToken = null;
 let googleToken = null;
+let tokenClient = null;
 async function handleAuthClick() {
      let client_id = document.querySelector("#g_id_onload").getAttribute("data-client_id");
      google.accounts.id.initialize({
@@ -1695,26 +1696,12 @@ async function handleAuthClick() {
     google.accounts.id.renderButton(parent, {theme: "filled_blue"});
 }
 
-function initializeGoogleAPI() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_API_CONFIG.clientId,
-        scope: GOOGLE_API_CONFIG.scope,
-        callback: async (tokenResponse) => {
-            if (tokenResponse.access_token) {
-                accessToken = tokenResponse.access_token;
-                await initializeGoogleDrive();
-                updateUIState(true);
-                console.log('Google Sign-In successful');
-            }
-        },
-    });
-}
 
 // 处理Google登录回调
 async function handleCredentialResponse(response) {
     try {
         googleToken = response.credential;
-        await initializeGoogleAPI();
+        await initializeGoogleDrive();
     } catch (error) {
         console.error('Error handling credential response:', error);
         updateUIState(false);
@@ -1733,7 +1720,7 @@ async function initializeGoogleDrive() {
         });
 
         // 设置授权头
-        gapi.client.setToken({ access_token: accessToken });
+        gapi.client.setToken({ access_token: googleToken });
     } catch (error) {
         console.error('Error initializing Google Drive:', error);
         throw error;
