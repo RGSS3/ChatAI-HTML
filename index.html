@@ -4,13 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-signin-client_id" content="512409442363-4ucg4nlhka5206kb034m7gm910koi4a6.apps.googleusercontent.com">
     <title>Local Chat Interface</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" async></script>
     <script src="https://apis.google.com/js/api.js"></script>
+    
 
 
     
@@ -1676,6 +1678,7 @@ function updateUIState(isSignedIn) {
 }
 
 let accessToken = null;
+let googleToken = null;
 async function handleAuthClick() {
      let client_id = document.querySelector("#g_id_onload").getAttribute("data-client_id");
      google.accounts.id.initialize({
@@ -1691,10 +1694,26 @@ async function handleAuthClick() {
     const parent = document.getElementById('google_btn');
     google.accounts.id.renderButton(parent, {theme: "filled_blue"});
 }
+
+function initializeGoogleAPI() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_API_CONFIG.clientId,
+        scope: GOOGLE_API_CONFIG.scope,
+        callback: async (tokenResponse) => {
+            if (tokenResponse.access_token) {
+                accessToken = tokenResponse.access_token;
+                await initializeGoogleDrive();
+                updateUIState(true);
+            }
+        },
+    });
+}
+
 // 处理Google登录回调
 async function handleCredentialResponse(response) {
     try {
-        accessToken = response.credential;
+        googleToken = response.credential;
+        initializeGoogleAPI();
         await initializeGoogleDrive();
         updateUIState(true);
         console.log('Google Sign-In successful');
