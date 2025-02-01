@@ -1889,18 +1889,9 @@ function onSignOut() {
     updateDriveButtons(false);
 }
 
-// 初始化 Google Client
-function initializeGoogleClient() {
-    const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CONFIG.client_id,
-        scope: GOOGLE_CONFIG.scope,
-        callback: handleTokenResponse
-    });
-    return client;
-}
 
 // 处理 token 响应
-async function handleTokenResponse(response) {
+async function handleCredentialResponse(response) {
     if (response.error !== undefined) {
         console.error('Token Error:', response.error);
         return;
@@ -1921,6 +1912,17 @@ async function handleTokenResponse(response) {
         
     }
 }
+
+// 初始化 Google Client
+function initializeGoogleClient() {
+    const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CONFIG.client_id,
+        scope: GOOGLE_CONFIG.scope,
+        callback: handleCredentialResponse
+    });
+    return client;
+}
+
 
 // 初始化 GAPI client
 async function initializeGapiClient(accessToken) {
