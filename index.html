@@ -1902,7 +1902,7 @@ async function handleCredentialResponse(response) {
     try {
         // 存储 access token
         console.log(response)
-        const accessToken = response.access_token;
+        const accessToken = response.credential;
         
         // 初始化 GAPI client
         await initializeGapiClient(accessToken);
