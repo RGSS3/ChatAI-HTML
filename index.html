@@ -1649,6 +1649,7 @@ async function updateVariable(inputVar, outputVar) {
 // Google Drive API 配置
 const GOOGLE_API_CONFIG = {
     clientId: '512409442363-4ucg4nlhka5206kb034m7gm910koi4a6.apps.googleusercontent.com',
+    apiKey: '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',
     scope: 'https://www.googleapis.com/auth/drive.file',
     discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
 };
@@ -1675,7 +1676,21 @@ function updateUIState(isSignedIn) {
 }
 
 let accessToken = null;
-
+async function handleAuthClick() {
+     let client_id = document.querySelector("#g_id_onload").getAttribute("data-client_id");
+     google.accounts.id.initialize({
+      client_id: client_id,
+      context: 'signin',
+      ux_mode: 'popup',
+      callback: (response) => {
+        console.log('response', response)
+        handleCredentialResponse(response);
+      },
+      auto_prompt: false
+    })
+    const parent = document.getElementById('google_btn');
+    google.accounts.id.renderButton(parent, {theme: "filled_blue"});
+}
 // 处理Google登录回调
 async function handleCredentialResponse(response) {
     try {
@@ -1958,6 +1973,7 @@ function handleError(error) {
         data-size="large" 
         data-logo_alignment="left">
     </div>
+    <div id="google_btn"></div>
 </body>
 
 </html>
