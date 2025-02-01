@@ -1702,6 +1702,8 @@ async function handleCredentialResponse(response) {
     try {
         googleToken = response.credential;
         await initializeGoogleDrive();
+        updateUIState(true);
+        console.log('Google Drive initialized successfully');
     } catch (error) {
         console.error('Error handling credential response:', error);
         updateUIState(false);
