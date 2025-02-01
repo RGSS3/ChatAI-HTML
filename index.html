@@ -1677,7 +1677,7 @@ function updateUIState(isSignedIn) {
     }
 }
 
-let accessToken = null;
+
 let googleToken = null;
 let tokenClient = null;
 async function handleAuthClick() {
@@ -1762,7 +1762,7 @@ async function getOrCreateUYPChatFolder() {
 
 // 保存到 Google Drive
 async function saveToGoogleDrive() {
-    if (!accessToken) {
+    if (!googleToken) {
         alert('Please sign in first');
         return;
     }
@@ -1797,7 +1797,7 @@ async function saveToGoogleDrive() {
         const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: 'POST',
             headers: new Headers({
-                'Authorization': `Bearer ${accessToken}`
+                'Authorization': `Bearer ${googleToken}`
             }),
             body: form
         });
@@ -1815,7 +1815,7 @@ async function saveToGoogleDrive() {
 
 // 从 Google Drive 打开
 async function openFromGoogleDrive() {
-    if (!accessToken) {
+    if (!googleToken) {
         alert('Please sign in first');
         return;
     }
