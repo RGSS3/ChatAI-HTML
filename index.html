@@ -1647,7 +1647,6 @@ async function updateVariable(inputVar, outputVar) {
         console.error('Variable execution error:', error);
     }
 }
-
 // Google Drive API 配置
 const GOOGLE_API_CONFIG = {
     clientId: '512409442363-4ucg4nlhka5206kb034m7gm910koi4a6.apps.googleusercontent.com',
@@ -1655,6 +1654,7 @@ const GOOGLE_API_CONFIG = {
     scope: 'https://www.googleapis.com/auth/drive.file',
     discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
 };
+
 
 const UYP_CHAT_FOLDER_NAME = 'UYP Chat';
 let googleAuth;
@@ -1841,12 +1841,7 @@ async function loadFile(fileId, fileName) {
     }
 }
 
-const GOOGLE_API_CONFIG = {
-    clientId: '512409442363-4ucg4nlhka5206kb034m7gm910koi4a6.apps.googleusercontent.com',
-    apiKey: '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',
-    scope: 'https://www.googleapis.com/auth/drive.file',
-    discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
-};
+
 
 // 获取或创建文件夹
 async function getOrCreateFolder(folderName) {
