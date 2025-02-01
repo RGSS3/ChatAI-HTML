@@ -1704,6 +1704,7 @@ function initializeGoogleAPI() {
                 accessToken = tokenResponse.access_token;
                 await initializeGoogleDrive();
                 updateUIState(true);
+                console.log('Google Sign-In successful');
             }
         },
     });
@@ -1713,10 +1714,7 @@ function initializeGoogleAPI() {
 async function handleCredentialResponse(response) {
     try {
         googleToken = response.credential;
-        initializeGoogleAPI();
-        await initializeGoogleDrive();
-        updateUIState(true);
-        console.log('Google Sign-In successful');
+        await initializeGoogleAPI();
     } catch (error) {
         console.error('Error handling credential response:', error);
         updateUIState(false);
