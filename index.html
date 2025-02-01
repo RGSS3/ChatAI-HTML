@@ -1918,8 +1918,8 @@ async function handleCredentialResponse(response) {
 // 初始化 Google Client
 function initializeGoogleClient() {
     const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CONFIG.client_id,
-        scope: GOOGLE_CONFIG.scope,
+        client_id: GOOGLE_API_CONFIG.client_id,
+        scope: GOOGLE_API_CONFIG.scope,
         callback: handleCredentialResponse
     });
     return client;
@@ -1936,8 +1936,8 @@ async function initializeGapiClient(accessToken) {
 
         // 初始化 GAPI 客户端
         await gapi.client.init({
-            apiKey: GOOGLE_CONFIG.apiKey,
-            discoveryDocs: GOOGLE_CONFIG.discoveryDocs
+            apiKey: GOOGLE_API_CONFIG.apiKey,
+            discoveryDocs: GOOGLE_API_CONFIG.discoveryDocs
         });
 
         // 设置 access token
