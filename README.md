@@ -20,6 +20,8 @@ Github Pages [在线地址](https://rgss3.github.io/ChatAI-HTML)
 2. 在浏览器中打开`index.html`
 3. 开始使用！
 
+**注意** 如果用OpenRouter, 可以用手动填写的API Key或者自动授权，自动授权不能是本地地址，您可以直接使用本项目提供的 [GitHub Pages](https://rgss3.github.io/ChatAI-HTML)，或者自行搭建一个HTTPS服务器来启用此功能。
+
 ## 模板系统
 
 支持以下模板语法：
