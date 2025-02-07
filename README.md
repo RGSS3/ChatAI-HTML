@@ -20,24 +20,39 @@ Github Pages [在线地址](https://rgss3.github.io/ChatAI-HTML)
 2. 在浏览器中打开`index.html`
 3. 开始使用！
 
-## 自定义集成
-
-你可以通过修改`sendMessage`函数来集成任何AI接口：
-
-```javascript
-async function sendMessage(message) {
-    // 在这里实现与AI接口的通信
-    // 返回AI的响应内容
-    return "AI的回复";
-}
-```
-
 ## 模板系统
 
 支持以下模板语法：
+- `{{context}}` - 获取全部上下文（不限制数量）
+- `{{input}}` - 获取用户输入框的内容
+- `{{var:xxx}}` - 获取变量`xxx`的值（如`{{var:summary_result}}`）
 - `{{context:N}}` - 获取最近N个字符的上下文
-- `{{js|code}}` - 执行JavaScript代码
+- `{{js|code|}}` - 执行JavaScript代码
 - 更多自定义模板处理器
+
+## 新增功能
+
+### a. Google Drive 支持
+现在支持从Google Drive保存和读取聊天记录。原本浏览器会保存一个本地记录，但清空缓存后会被删除。通过Google Drive，您可以持久化保存聊天记录，避免数据丢失。
+
+### b. 手动输入输出与上下文压缩
+如果API端点设置为`"manual"`，您可以手动输入和输出聊天内容。同时，提供了一个简单的上下文压缩接口，默认设置为Kobold的`http://localhost:5001`。您可以将请求手动复制到Poe或其他非API端点使用。
+
+### c. 文本格式导入导出
+支持导入和导出文本格式的聊天记录，方便您在不同平台或设备之间迁移数据。
+
+## 自定义集成
+
+您可以通过覆盖`callAPI.js`文件来实现自定义集成。例如，当前的`manual`模式就是通过覆盖`callAPI.js`来实现的。
+
+## 变量管理
+
+变量管理提供了四个操作按钮：
+
+- **➕ Add**: 增加变量
+- **▶️ Execute**: 执行变量，将变量的内容按预处理方式替换并输出到控制台（包含的JavaScript代码也会执行）
+- **🔄 Update**: 更新变量。以`summary`为例，无论是对`summary`还是`summary_result`运行更新功能，都会将`summary`的内容预处理之后作为AI提示，并将输出更新到`summary_result`中。
+- **🗑️ Remove**: 删除变量
 
 ## 许可证
 
@@ -62,10 +77,9 @@ async function sendMessage(message) {
 
 ## 待办事项
 
-- [ ] 支持更多自定义主题
-- [ ] 增加插件系统
-- [ ] 添加更多预设模板
-- [ ] 优化移动端体验
+- [ ] **更完善的自定义工作流**：支持在一条消息上实现预压缩、后压缩、提取、设置、RAG等完全自定义操作。
+- [ ] **支持Automatic1111接口画图**：集成Automatic1111的API，支持通过聊天界面生成图像。
+- [ ] **支持多模态输入**：至少包括文件和图片的输入支持。
 
 ## 致谢
 
