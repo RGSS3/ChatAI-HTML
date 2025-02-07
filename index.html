@@ -136,6 +136,11 @@
             initializeLeftPanel();
             initializeChatArea();
             initializeRightPanel();
+            try {
+                renderSignedIn();
+            } catch (e) {
+                
+            }
         }
 
         // 这里我们先加载状态并初始化UI

@@ -304,7 +304,7 @@ async function openFromGoogleDrive() {
       saveState();
       initializeUI();
       initializeVariables();
-      renderSignedIn();
+    
       alert("状态已成功更新！");
     }
   } catch (error) {
@@ -313,7 +313,7 @@ async function openFromGoogleDrive() {
     saveState();
     initializeUI();
     initializeVariables();
-    renderSignedIn();
+    
     console.error("打开文件出错：", error);
     alert("打开文件时出错，状态已回滚。请检查控制台日志。");
   }
