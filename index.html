@@ -18,6 +18,9 @@
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
     <style>
+        html, body {
+            overflow: hidden;
+        }
         dialog {
             padding: 20px;
             border: none;
@@ -161,7 +164,7 @@
                 padding: 1rem;
                 background: #f8f9fa;
                 border-right: 1px solid #dee2e6;
-                overflow-y: auto;
+                
             }
             
             #chat-area {
@@ -175,13 +178,13 @@
             }
             #app {
                 width: 100vw;
-                height: 100vh;
+                height: 95%;
                 overflow: hidden; /* 防止整体出现滚动条 */
             }
 
             #left-panel {
                 width: 250px; /* 或其他固定宽度 */
-                height: 100vh;
+                height: 97vh;
                 overflow-y: auto; /* 允许垂直滚动 */
                 overflow-x: hidden; /* 禁止水平滚动 */
                 border-right: 1px solid #e5e7eb;
@@ -193,7 +196,7 @@
 
             #chat-area {
                 flex: 1; /* 占据剩余空间 */
-                height: 100vh;
+                height: 97vh;
                 overflow-y: auto;
                 overflow-x: hidden;
                 background: #ffffff;
@@ -204,7 +207,7 @@
 
             #right-panel {
                 width: 300px; /* 或其他固定宽度 */
-                height: 100vh;
+                height: 97vh;
                 overflow-y: auto;
                 overflow-x: hidden;
                 border-left: 1px solid #e5e7eb;
@@ -241,7 +244,7 @@
                 background-color: #94a3b8;
             }
             .variables-control {
-	   	    	flex-direction: column;
+	   	    	flex-direction: row;
 	   	    }
 
             /* 确保在移动设备上也能正常工作 */
@@ -339,6 +342,10 @@
 
             .button-list {
                 margin-right: 0.2rem;
+            }
+
+            .button-function {
+                max-width: 60px;
             }
 
         `;
@@ -543,10 +550,11 @@
                 paramItem.className = 'parameter-item';
                 paramItem.innerHTML = `
                         <span class="parameter-name">${param.name}</span>
-                        <input type="text" class="parameter-value" value="${param.value}">
+                        <input type="text" class="parameter-value" value="">
                         <span class="parameter-range">${param.range}</span>
                         <button class="delete-param" data-index="${index}">×</button>
                     `;
+                paramItem.querySelector('.parameter-value').value = param.value;
                 parametersList.appendChild(paramItem);
 
                 // 添加参数值更改事件
@@ -625,19 +633,24 @@
                 <select id="variable-select" style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                     <option value="">Select a variable</option>
                 </select>
+            </div>
+            <p></p>
+            <div class="variables-control" style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
                 <textarea id="variable-content" style="width: 100%; min-height: 100px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 1rem; display: none;"></textarea>
-                <button id="add-variable" class="button" title="Add Variable">
+            </div>
+            <div class="variables-control" style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">                
+                <button id="add-variable" class="button button-function" title="Add Variable">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 5v14"></path>
                         <path d="M5 12h14"></path>
                     </svg>
                 </button>
-                <button id="execute-variable" class="button" title="Execute Variable">
+                <button id="execute-variable" class="button button-function" title="Execute Variable">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polygon points="5 3 19 12 5 21 5 3"></polygon>
                     </svg>
                 </button>
-                <button id="update-variable" class="button" title="Update Variable">
+                <button id="update-variable" class="button button-function" title="Update Variable">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 2v6h-6"></path>
                         <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
@@ -645,7 +658,7 @@
                         <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
                     </svg>
                 </button>
-                <button id="remove-variable" class="button" style="background: #ff4444;" title="Remove Variable">
+                <button id="remove-variable" class="button button-function" style="background: #ff4444;" title="Remove Variable">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M3 6h18"></path>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
@@ -668,15 +681,110 @@
                 <button id='clear-chat' class="button">Clear Chat</button>
                 <button id='download-ai' class="button">Download AI Text only</button>
                 <button id='download-all' class="button">Download All Text</button>
+
+                <button id="import-text" class="button">Import Text</button>
+                <button id="export-text" class="button">Export Text</button>
+                <input type="file" id="import-text-file" style="display: none;">
                 <div class='separator'></div>
                 <!--<button id="signInButton" onclick="handleAuthClick()">Sign in with Google</button> -->
+                <div class="g_id_signin" 
+                    data-type="standard" 
+                    data-shape="rectangular" 
+                    data-theme="outline" 
+                    data-text="signin_with" 
+                    data-size="large" 
+                    data-logo_alignment="left">
+                </div>
+
                 <div id="google_btn"></div>
                 <button id="saveToDrive" onclick="saveToGoogleDrive()" disabled>Save to Drive</button>
                 <button id="openFromDrive" onclick="openFromGoogleDrive()" disabled>Open from Drive</button>
             </div>
         </div>
     `;
+            document.getElementById('export-text').addEventListener('click', exportText);
 
+            function exportText() {
+                // for each message,
+                // output the format
+                // ---[name:role]---
+                // content
+                // \n
+                // save as title.txt
+                const text = state.chatHistory.map((message) => {
+                    return `---[${message.name}:${message.role}]---
+${message.content}
+`;
+                }).join('\n');
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${state.title}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+            // import text file hook
+            document.getElementById('import-text-file').addEventListener('change', importText);
+            // import export text
+            document.getElementById('import-text').addEventListener('click', () => {
+              document.getElementById('import-text-file').click()
+            })
+            
+
+            async function importText(event) {
+                const file = document.getElementById('import-text-file').files[0];
+                if (!file) {
+                    return;
+                }
+                if (!confirm('需要要清空当前聊天记录并导入新的文本吗？')) {
+                    return;
+                }
+                const reader = new FileReader();
+                const save = JSON.parse(JSON.stringify(state.chatHistory))
+                reader.onload = (e) => {
+                    try {
+                        
+                        const text = e.target.result;
+                        const lines = text.split('\n');
+                        const messages = [];
+                        let currentMessage = null;
+                        for (const line of lines) {
+                            if (line.startsWith('---[')) {
+                                if (currentMessage) {
+                                    messages.push(currentMessage);
+                                }
+                                currentMessage = {
+                                    name: line.split('[')[1].split(':')[0],
+                                    role: line.split('[')[1].split(':')[1].split(']')[0],
+                                    content: '',
+                                    timestamp: +new Date()
+                                };
+                            } else {
+                                if (currentMessage) {
+                                    currentMessage.content += line + '\n\n';
+                                }
+                            }
+                        }
+                        if (currentMessage) {
+                            messages.push(currentMessage);
+                        }
+                        state.chatHistory = messages;
+                        saveState();
+                        renderMessages();
+                        alert('导入成功');
+                    } catch (e) {
+                        state.chatHistory = save;
+                        alert('导入失败，请检查文件格式');
+                        saveState();
+                        renderMessages();
+                        console.error(e);
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+        
             document.querySelector("#chat-title").value = state.title;
             document.querySelector("#chat-title").addEventListener('change', (e) => {
                 state.title = e.target.value;
@@ -762,23 +870,8 @@
 
             // 添加执行按钮的事件处理
             // 添加执行按钮的事件处理
-            document.getElementById('execute-variable').addEventListener('click', () => {
-                const selectedVar = document.getElementById('variable-select').value;
-                if (!selectedVar) {
-                    console.warn('No variable selected');
-                    return;
-                }
-
-                // 获取变量内容并处理
-                const content = state.variables[selectedVar];
-                if (!content) {
-                    console.warn('Selected variable is empty');
-                    return;
-                }
-
-                // 直接使用现有的processContextV2处理变量内容
-                const processedContent = processContextV2(state.lastInput || '', content);
-                console.log('Executed variable result:', processedContent);
+            document.getElementById('execute-variable').addEventListener('click', async () => {
+                await executeVariable();
             });
 
             // 添加更新按钮的事件处理
@@ -797,6 +890,32 @@
                 // 直接用选中的变量名称加上"_result"作为输出变量
                 updateVariable(selectedVar, selectedVar + '_result');
             });
+        }
+
+        function executeVariableWith(selectedVar) {
+            // 获取变量内容并处理
+            const content = state.variables[selectedVar];
+            if (!content) {
+                console.warn('Selected variable is empty');
+                return;
+            }
+            // state.lastInput = document.getElementById('message-input').value;
+
+            // 直接使用现有的processContextV2处理变量内容
+            const processedContent = processContextV2(document.getElementById('message-input').value || '', content);
+            // console.log('Executed variable result:', processedContent);
+            return processedContent;
+        }
+
+        function executeVariable() {
+            const selectedVar = document.getElementById('variable-select').value;
+            if (!selectedVar) {
+                console.warn('No variable selected');
+                return;
+            }
+
+            const ret = executeVariableWith(selectedVar);
+            console.log(ret);
         }
 
         // 渲染变量下拉框
@@ -1072,6 +1191,7 @@
                 <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center;">
                     <span>${msg.name} - ${new Date(msg.timestamp).toLocaleString()}</span>
                     <div class="message-actions" style="display: flex; gap: 0.5rem;">
+                        <span class="text-length" style="font-size: 0.8rem; color: #666;">${msg.content.length}字</span>
                         <button class="edit-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">修改</button>
                         <button class="delete-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">删除</button>
                         <button class="add-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">添加</button>
@@ -1315,7 +1435,7 @@ async function callAPI(messages, options = {}) {
         requestBody.messages = requestBody.messages.filter(msg => msg);
 
         state.parameters.forEach(param => {
-            requestBody[param.name] = parseFloat(param.value);
+            requestBody[param.name] = JSON.parse(param.value);
         });
 
         const response = await fetch(state.endpoint + '/v1/chat/completions', {
@@ -1385,6 +1505,10 @@ async function callAPI(messages, options = {}) {
 }
 
 async function sendMessage() {
+    // if state.variables contains 'auto.send.before'
+    // executeVariableWith('auto.send.before') before everything
+    executeVariableWith('auto.chat.before');
+    executeVariableWith('auto.send.before');
     const input = document.getElementById('message-input').value.trim();
     document.getElementById('message-input').value = '';
     let processedContext, contextMessages;
@@ -1451,7 +1575,11 @@ async function sendMessage() {
     saveState();
 }
 async function continueMessage() {
+    executeVariableWith('auto.chat.before');
+    executeVariableWith('auto.continue.before');
+    
     if (state.chatHistory.length === 0) return;
+    
     
     const lastMessage = state.chatHistory[state.chatHistory.length - 1];
     let contextMessages = state.chatHistory.slice(0, -1);
@@ -1498,6 +1626,9 @@ async function continueMessage() {
 }
 
 async function nextMessage() {
+    executeVariableWith('auto.chat.before');
+    executeVariableWith('auto.next.before');
+    
     
     // 处理上下文
     let processedContext = processContextV2('');
@@ -1628,7 +1759,7 @@ async function updateVariable(inputVar, outputVar) {
 
     try {
         // 处理输入变量内容作为模板
-        const processedContent = processContextV2(state.lastInput || '', inputContent);
+        const processedContent = processContextV2(document.getElementById('message-input').value || '', inputContent);
         const messages = parseMessages(processedContent);
         
         // 调用API获取结果
@@ -1697,14 +1828,6 @@ async function updateVariable(inputVar, outputVar) {
         data-itp_support="true">
     </div>
 
-    <div class="g_id_signin" 
-        data-type="standard" 
-        data-shape="rectangular" 
-        data-theme="outline" 
-        data-text="signin_with" 
-        data-size="large" 
-        data-logo_alignment="left">
-    </div>
     
 <div id="fileSelectModal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 5px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);">
     <h3>选择要打开的文件</h3>
@@ -1717,6 +1840,7 @@ async function updateVariable(inputVar, outputVar) {
     <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 
     <script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()"></script>
+    <script src='callAPI.js'></script>
 </body>
 
 </html>
