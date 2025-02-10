@@ -12,7 +12,6 @@ async function callAPI(messages, options = {}) {
             messages: messages.map(msg => (msg.name + msg.content ? ({
                 role: msg.role,
                 content: msg.name ? msg.name + ": " + msg.content : msg.content,
-                name: msg.name,
             }) : null)),
             stream
         };
@@ -24,6 +23,16 @@ async function callAPI(messages, options = {}) {
 
         // 在callAPI函数中的manual模式部分修改为：
         if (state.endpoint === 'manual') {
+            const requestBody = {
+                model: state.model,
+                messages: messages.map(msg => (msg.name + msg.content ? ({
+                    role: msg.role,
+                    content: msg.name ? msg.name + ": " + msg.content : msg.content,
+                    name: msg.name,
+                    compressed: msg.compressed,
+                }) : null)),
+                stream
+            };
             const manualResponse = await showManualInputDialog(
                 messages, // 传入完整的messages数组
                 requestBody
@@ -134,24 +143,19 @@ function showManualInputDialog(messages, requestBody) {
         const formatJSON = (obj) => {
             return JSON.stringify(obj, null, 2);
         };
-
+        console.log(messages)
         const formattedMessages = messages.map(msg => {
-            return `--- [${msg.name}:${msg.role}] --- \n\n${msg.content}`;
+            let context
+            if (msg.compressed) {
+                context = "[这部分已经经过压缩]\n" + msg.compressed
+            } else {
+                context = msg.content
+            }
+            return `--- [${msg.name}:${msg.role}] --- \n\n${context}`;
         }).join('\n\n');
 
-        const defaultPrompt = `你需要帮我压缩下面的对话记录，我将发给别的AI。要求:
-1. 对content部分进行压缩总结,但保持关键信息和文风
-2. 总体压缩率大约30%
-3. 确保压缩后的文本仍能被理解并一定的结构，连贯性和一定的文风和对话
-4. 如果有章节信息 注意保持原文章节信息，如第一季（如果有） 第二章(如果有)等
-5. 注意维持人物设定，摘要细节等
-输入文本:
-{{input}}
-
-请直接返回压缩后的文本，不要有任何其他解释。`;
-
         const modalHtml = `
-            <div id="manualInputModal" style="
+            <div data-id="manualInputModal" style="
                 position: fixed;
                 top: 0;
                 left: 0;
@@ -192,7 +196,7 @@ function showManualInputDialog(messages, requestBody) {
                                 padding: 10px;
                             ">
                                 <strong>完整会话记录:</strong>
-                                <textarea id="formattedMessages" style="
+                                <textarea data-id="formattedMessages" style="
                                     width: 100%;
                                     min-height: 200px;
                                     background: #f8f9fa;
@@ -209,7 +213,7 @@ function showManualInputDialog(messages, requestBody) {
                                     gap: 10px;
                                     margin-top: 5px;
                                 ">
-                                    <button onclick="copyToClipboard('formattedMessages')" style="
+                                    <button data-id='copyMessages' style="
                                         padding: 4px 12px;
                                         background: #2196F3;
                                         color: white;
@@ -221,50 +225,7 @@ function showManualInputDialog(messages, requestBody) {
                                 </div>
                             </div>
 
-                              <!-- 新增压缩相关区域 -->
-                            <div style="
-                                border: 1px solid #e0e0e0;
-                                border-radius: 4px;
-                                padding: 10px;
-                            ">
-                                <strong>压缩提示词:</strong>
-                                <textarea id="compressionPrompt" style="
-                                    width: 100%;
-                                    height: 150px;
-                                    background: #f8f9fa;
-                                    padding: 10px;
-                                    border-radius: 4px;
-                                    border: 1px solid #ddd;
-                                    margin: 5px 0;
-                                    font-size: 12px;
-                                    font-family: monospace;
-                                    resize: vertical;
-                                ">${defaultPrompt}</textarea>
-                                
-                                <div style="
-                                    display: flex;
-                                    gap: 10px;
-                                    margin-top: 5px;
-                                    align-items: center;
-                                ">
-                                    <input type="text" id="compressionEndpoint" value="http://localhost:5001" style="
-                                        flex: 1;
-                                        padding: 4px 8px;
-                                        border: 1px solid #ddd;
-                                        border-radius: 4px;
-                                        font-size: 12px;
-                                    ">
-                                    <button onclick="compressText()" style="
-                                        padding: 4px 12px;
-                                        background: #673AB7;
-                                        color: white;
-                                        border: none;
-                                        border-radius: 4px;
-                                        cursor: pointer;
-                                        font-size: 12px;
-                                    ">压缩</button>
-                                </div>
-                            </div>
+                           
                             
                             <div style="
                                 border: 1px solid #e0e0e0;
@@ -272,7 +233,7 @@ function showManualInputDialog(messages, requestBody) {
                                 padding: 10px;
                             ">
                                 <strong>请求体:</strong>
-                                <textarea id="requestBodyJson" style="
+                                <textarea data-id="requestBodyJson" style="
                                     width: 100%;
                                     min-height: 200px;
                                     background: #f8f9fa;
@@ -283,8 +244,8 @@ function showManualInputDialog(messages, requestBody) {
                                     font-size: 12px;
                                     font-family: monospace;
                                     resize: vertical;
-                                ">${formatJSON(requestBody)}</textarea>
-                                <button onclick="copyToClipboard('requestBodyJson')" style="
+                                "></textarea>
+                                <button data-id='copyJson' style="
                                     padding: 4px 12px;
                                     background: #2196F3;
                                     color: white;
@@ -307,7 +268,7 @@ function showManualInputDialog(messages, requestBody) {
                             gap: 10px;
                         ">
                             <strong>输入回复:</strong>
-                            <textarea id="manualResponse" style="
+                            <textarea data-id="manualResponse" style="
                                 flex-grow: 1;
                                 padding: 8px;
                                 border: 1px solid #ccc;
@@ -322,7 +283,7 @@ function showManualInputDialog(messages, requestBody) {
                                 justify-content: flex-end;
                                 gap: 10px;
                             ">
-                                <button onclick="submitManualResponse()" style="
+                                <button data-id='confirm' style="
                                     padding: 8px 16px;
                                     background: #4CAF50;
                                     color: white;
@@ -340,128 +301,23 @@ function showManualInputDialog(messages, requestBody) {
         const modalContainer = document.createElement('div');
         modalContainer.innerHTML = modalHtml;
         document.body.appendChild(modalContainer);
-        const prompt = document.getElementById('compressionPrompt');
-        const endpoint = document.getElementById('compressionEndpoint');
-        // auto save and load this two to state.compress
-        state.compress = state.compress || {
-            prompt,
-            endpoint,
-            cache: {}
-        }
-        prompt.addEventListener('change', (e) => {
-            state.compress.prompt = e.target.value;
-            saveState();
-        })
-        endpoint.addEventListener('change', (e) => {
-            state.compress.endpoint = e.target.value;
-            saveState();
-        })
-        if (state.compress) {
-            prompt.value = state.compress.prompt;
-            endpoint.value = state.compress.endpoint;
-        }
-        async function compressMessage(endpoint, message) {
-            if (message && state.compress.cache[message]) {
-                return state.compress.cache[message];
-            }
-            const pre_response = await fetch(endpoint + '/v1/chat/completions', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                messages: [
-                                    {
-                                        role: "user",
-                                        content: message
-                                    }
-                                ],
-                                temperature: 0.3,
-                                max_tokens: 512,
-                            })
-                        });
-            const response = {
-                ok: pre_response.ok,
-                status: pre_response.status,
-                json: await pre_response.json()
-            }
-            if (!response.ok) {
-                return response
-            } else {
-                state.compress.cache[message] = response
-                saveState();
-                return response;
-            }
-        }
-        window.compressText = async () => {
-            const messages = document.getElementById('formattedMessages').value;
-            const endpoint = document.getElementById('compressionEndpoint').value;
-            const prompt = document.getElementById('compressionPrompt').value;
-            const responseArea = document.getElementById('manualResponse');
-            
-            try {
-                const requestBodyJson = JSON.parse(document.getElementById('requestBodyJson').value);
-                let compressedMessages = [];
-                
-                // 处理每一条消息
-                for (let msg of requestBody.messages) {
-                    try {
-                        // 如果是system消息，直接保留
-                        if (msg.role === 'system' || msg.content.length < 100 || msg.role === 'user') {
-                            compressedMessages.push(`---[${msg.name || ''}:${msg.role}]--- \n\n${msg.content}`);
-                            continue;
-                        }
+        const messages = modalContainer.querySelector('[data-id=formattedMessages]');
+        const copyMessages = modalContainer.querySelector('[data-id=copyMessages]');
+        const requestBodyJson = modalContainer.querySelector('[data-id=requestBodyJson]');
+        const copyJson = modalContainer.querySelector('[data-id=copyJson]');
+        const manualResponse = modalContainer.querySelector('[data-id=manualResponse]');
+        const confirm = modalContainer.querySelector('[data-id=confirm]');
 
-                        // 构建压缩请求
-                        const promptWithInput = prompt.replace('{{input}}', 
-                            msg.content
-                        );
-
-                        const response = await compressMessage(endpoint, promptWithInput);
-
-                        
-
-                        if (!response.ok) {
-                            responseArea.value = `压缩第 ${compressedMessages.length + 1} 条消息失败:\nHTTP ${response.status}\n\n已压缩的消息:\n\n${compressedMessages.join('\n\n')}`;
-                            return;
-                        }
-
-                        const data = response.json;
-                        if (data.choices && data.choices[0] && data.choices[0].message) {
-                            // compressedMessages.push(data.choices[0].message.content.trim());
-                            // `--- [${msg.name || ''}:${msg.role}] --- 
-                            const originLength = msg.content.length;
-                            compressedMessages.push(`---[${msg.name || ''}:${msg.role}:原本字数${originLength}]--- \n\n${data.choices[0].message.content.trim()}`);
-                        } else {
-                            responseArea.value = `压缩第 ${compressedMessages.length + 1} 条消息返回了意外的格式\n\n已压缩的消息:\n\n${compressedMessages.join('\n\n')}`;
-                            return;
-                        }
-
-                        // 添加进度提示
-                        responseArea.value = `正在压缩... (${compressedMessages.length}/${requestBodyJson.messages.length})\n\n` +
-                            compressedMessages.join('\n\n');
-
-                    } catch (err) {
-                        responseArea.value = `处理第 ${compressedMessages.length + 1} 条消息时发生错误:\n${err.message}\n\n已压缩的消息:\n\n${compressedMessages.join('\n\n')}`;
-                        return;
-                    }
-                }
-
-                // 最终输出
-                responseArea.value = "已经压缩过对话或者描写，在你的回复中需要按照最近一个输出章节的字数来决定长度，而不只是压缩后的\n" + compressedMessages.join('\n\n');
-
-            } catch (error) {
-                // JSON解析错误或其他初始化错误
-                responseArea.value = `初始化压缩任务失败:\n${error.message}`;
-            }
-        };
+        messages.textContent = formattedMessages;
+        requestBodyJson.value = JSON.stringify(requestBody, null, 2);
+        copyMessages.addEventListener('click', () => copyToClipboard(messages, copyMessages));
+        copyJson.addEventListener('click', () => copyToClipboard(requestBodyJson, copyJson));
+        confirm.addEventListener('click', () => submitManualResponse());
 
         // 复制到剪贴板功能
-        window.copyToClipboard = async (elementId) => {
-            const element = document.getElementById(elementId);
+        async function copyToClipboard (element, button) {
             try {
                 await navigator.clipboard.writeText(element.value);
-                const button = element.nextElementSibling;
                 const originalText = button.textContent;
                 button.textContent = '已复制！';
                 button.style.background = '#4CAF50';
@@ -476,13 +332,10 @@ function showManualInputDialog(messages, requestBody) {
         };
 
         // 提交功能
-        window.submitManualResponse = () => {
+        function submitManualResponse() {
             const response = document.getElementById('manualResponse').value;
             document.body.removeChild(modalContainer);
             resolve(response);
-            delete window.submitManualResponse;
-            delete window.copyToClipboard;
-            delete window.compressText;
         };
 
         // ESC键关闭功能
@@ -490,10 +343,7 @@ function showManualInputDialog(messages, requestBody) {
             if (e.key === 'Escape') {
                 document.body.removeChild(modalContainer);
                 document.removeEventListener('keydown', escListener);
-                resolve('');
-                delete window.submitManualResponse;
-                delete window.copyToClipboard;
-                delete window.compressText;
+                throw new Error('用户取消');
             }
         });
     });

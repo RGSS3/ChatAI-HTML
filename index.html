@@ -78,6 +78,16 @@
         <div id="right-panel"></div>
     </div>
     <script>
+       const GOOGLE_API_CONFIG = {
+        clientId: '512409442363-4ucg4nlhka5206kb034m7gm910koi4a6.apps.googleusercontent.com',
+        apiKey: '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',
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+    };
+
+
+   const UYP_CHAT_FOLDER_NAME = 'UYP Chat';
+
         // 常量定义
         const defaultEndpoint = 'https://openrouter.ai/api';
         const defaultModel = 'anthropic/claude-3.5-sonnet';
@@ -115,6 +125,9 @@
 
         // 初始化状态
         let state = defaultState();
+        state.compress = state.compress || {
+            cache: {}
+        }
 
         // 从localStorage加载状态
         function loadState() {
@@ -147,9 +160,7 @@
         }
 
         // 这里我们先加载状态并初始化UI
-        loadState();
-        initializeUI();
-       
+ 
         // 添加样式
         const style = document.createElement('style');
         style.textContent = `
@@ -994,7 +1005,7 @@ ${message.content}
         }
 
 
-        initializeVariables();
+        
 
         // 导入导出功能
         async function exportChat() {
@@ -1158,202 +1169,8 @@ ${message.content}
 `;
         document.head.appendChild(loadingStyle);
         
-        function renderMessages() {
-            const messagesDiv = document.getElementById('messages');
-            messagesDiv.innerHTML = '';
-
-            state.chatHistory.forEach((msg, index) => {
-                const msgDiv = document.createElement('div');
-                msgDiv.className = `message ${msg.role}`;
-                msgDiv.style.marginBottom = '1rem';
-                msgDiv.style.padding = '0.5rem';
-                msgDiv.style.borderRadius = '0.25rem';
-                msgDiv.style.backgroundColor = msg.role === 'user' ? '#e3f2fd' : '#f5f5f5';
-                const isLast = index === state.chatHistory.length - 1;
-                const lastButton = isLast ? `<button class='resend-btn' style='border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;'>重发</button>` : '';
-
-                // 如果是loading消息，直接使用content中的HTML
-                if (msg.isLoading) {
-                    msgDiv.innerHTML = `
-                <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center;">
-                    <span>${msg.name} - ${new Date(msg.timestamp).toLocaleString()}</span>
-                </div>
-                <div class="message-content">${msg.content}</div>
-            `;
-                } else {
-                    let content;
-                    try {
-                        content = marked.parse(msg.content);
-                    } catch (e) {
-                        content = msg.content;
-                    }
-                    msgDiv.innerHTML = `
-                <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center;">
-                    <span>${msg.name} - ${new Date(msg.timestamp).toLocaleString()}</span>
-                    <div class="message-actions" style="display: flex; gap: 0.5rem;">
-                        <span class="text-length" style="font-size: 0.8rem; color: #666;">${msg.content.length}字</span>
-                        <button class="edit-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">修改</button>
-                        <button class="delete-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">删除</button>
-                        <button class="add-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">添加</button>
-                        ${lastButton}
-                    </div>
-                </div>
-                <div class="message-content">${content}</div>
-            `;
-
-                    // 添加事件监听器
-                    const editBtn = msgDiv.querySelector('.edit-btn');
-                    const deleteBtn = msgDiv.querySelector('.delete-btn');
-                    const addBtn = msgDiv.querySelector('.add-btn');
-                    const resendBtn = msgDiv.querySelector('.resend-btn');
-
-                    editBtn.addEventListener('click', () => {
-                        showMessageDialog('edit', index, msg);
-                    });
-
-                    deleteBtn.addEventListener('click', () => {
-                        if (confirm('确定要删除这条消息吗？')) {
-                            state.trash.push(state.chatHistory[index]);
-                            state.chatHistory.splice(index, 1);
-                            saveState();
-                            renderMessages();
-                        }
-                    });
-
-                    addBtn.addEventListener('click', () => {
-                        showMessageDialog('add', index);
-                    });
-                    if (resendBtn) {
-                        resendBtn.addEventListener('click', resendMessage);
-                    }
-                }
-                messagesDiv.appendChild(msgDiv);
-            });
-
-            // 滚动到底部
-            setTimeout(() => {
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            }, 0);
-
-            // 代码高亮
-            document.querySelectorAll('pre code').forEach((block) => {
-                hljs.highlightElement(block);
-            });
-        }
-
-        function resendMessage() {
-            if (state.chatHistory.length > 0 && state.chatHistory[state.chatHistory.length - 1].role == 'assistant') {
-                state.trash.push(state.chatHistory[state.chatHistory.length - 1]);
-                state.chatHistory.splice(state.chatHistory.length - 1, 1);
-                saveState();
-                nextMessage();
-            }
-        }
-
         
-        // 添加消息对话框函数
-        function showMessageDialog(type, index, msg = null) {
-            // 创建对话框
-            const dialog = document.createElement('div');
-            dialog.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        z-index: 1000;
-        width: 80%;
-        max-width: 500px;
-    `;
 
-            // 对话框内容
-            dialog.innerHTML = `
-        <h3 style="margin: 0 0 1rem 0">${type === 'edit' ? '修改消息' : '添加消息'}</h3>
-        <div style="margin-bottom: 1rem">
-            <label style="display: block; margin-bottom: 0.5rem">角色：</label>
-            <input type="text" id="role-input" value="${msg ? msg.role : 'user'}" 
-                style="width: 95%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">
-        </div>
-        <div style="margin-bottom: 1rem">
-            <label style="display: block; margin-bottom: 0.5rem">角色名：</label>
-            <input type="text" id="name-input" value="${msg ? (msg.name || msg.role) : 'user'}" 
-                style="width: 95%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">
-        </div>
-        <div style="margin-bottom: 1rem">
-            <label style="display: block; margin-bottom: 0.5rem">内容：</label>
-            <textarea id="content-input" style="width: 95%; height: 200px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 0.25rem;">${msg ? msg.content : ''}</textarea>
-        </div>
-        <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-            <button id="cancel-btn" style="padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 0.25rem; background: white; cursor: pointer;">取消</button>
-            <button id="confirm-btn" style="padding: 0.5rem 1rem; border: none; border-radius: 0.25rem; background: #1976d2; color: white; cursor: pointer;">确定</button>
-        </div>
-    `;
-
-            // 创建遮罩
-            const overlay = document.createElement('div');
-            overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 999;
-    `;
-
-            // 添加到文档
-            document.body.appendChild(overlay);
-            document.body.appendChild(dialog);
-
-            // 事件处理
-            const cancelBtn = dialog.querySelector('#cancel-btn');
-            const confirmBtn = dialog.querySelector('#confirm-btn');
-            const roleInput = dialog.querySelector('#role-input');
-            const contentInput = dialog.querySelector('#content-input');
-            const nameInput = dialog.querySelector('#name-input');
-
-            cancelBtn.addEventListener('click', () => {
-                overlay.remove();
-                dialog.remove();
-            });
-
-            confirmBtn.addEventListener('click', () => {
-                const role = roleInput.value.trim();
-                const content = contentInput.value.trim();
-                const name = nameInput.value.trim();
-
-                if (!role || !content) {
-                    alert('角色和内容不能为空');
-                    return;
-                }
-
-                if (type === 'edit') {
-                    // 修改消息
-                    state.chatHistory[index] = {
-                        role,
-                        content,
-                        name,
-                        timestamp: Date.now()
-                    };
-                } else {
-                    // 添加消息
-                    state.chatHistory.splice(index, 0, {
-                        role,
-                        content,
-                        name,
-                        timestamp: Date.now()
-                    });
-                }
-
-                saveState();
-                renderMessages();
-                overlay.remove();
-                dialog.remove();
-            });
-        }
 
 function processContextV2(input, template) {
     // 如果没有提供模板，使用默认模板
@@ -1361,6 +1178,21 @@ function processContextV2(input, template) {
     
     const processors = {
         input: () => input,
+
+        // similar to context, but this counts for message count
+        msgnum: (length) => {
+            let historyText = '';
+            let currentLength = 0;
+            length = parseInt(length) || Infinity;
+            let c = 0
+
+            for (let i = state.chatHistory.length - 1; i >= 0 && c < length; i--, c++) {
+                const msg = state.chatHistory[i];
+                const content = msg.compressed ? `[已经经过压缩]{${msg.compressed}}` : msg.content;
+                historyText = `---[${msg.role}:${msg.name}:${msg.timestamp}]---\n${content}\n\n${historyText}`;
+            }        
+            return historyText.trim();
+        },
         
         context: (maxLength) => {
             let historyText = '';
@@ -1369,11 +1201,14 @@ function processContextV2(input, template) {
             
             for (let i = state.chatHistory.length - 1; i >= 0; i--) {
                 const msg = state.chatHistory[i];
-                const msgLength = msg.content.length * 2;
+                const content = msg.compressed ? `[已经经过压缩]{${msg.compressed}}` : msg.content;
+                const msgLength = content.length * 2;
                 if (currentLength + msgLength > maxLength) {
                     break;
                 }
-                historyText = `---[${msg.role}:${msg.name}:${msg.timestamp}]---\n${msg.content}\n\n${historyText}`;
+                
+                historyText = `---[${msg.role}:${msg.name}:${msg.timestamp}]---\n${content}\n\n${historyText}`;
+
                 currentLength += msgLength;
             }
             return historyText.trim();
@@ -1786,35 +1621,6 @@ async function updateVariable(inputVar, outputVar) {
     }
 }
 // Google Drive API 配置
-    const GOOGLE_API_CONFIG = {
-       clientId: '512409442363-4ucg4nlhka5206kb034m7gm910koi4a6.apps.googleusercontent.com',
-       apiKey: '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',
-       scope: 'https://www.googleapis.com/auth/drive.file',
-       discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
-   };
-
-
-   const UYP_CHAT_FOLDER_NAME = 'UYP Chat';
-
-// 添加到 HTML
-
-        // 如果url后面有?code=.... 那就是OpenRouter获取的新Key, 把他填入Bearer
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        if (code) {
-            fetch("https://openrouter.ai/api/v1/auth/keys", {
-                method: "POST",
-                body: JSON.stringify({
-                    code: code,
-                })
-            }).then(response => response.json()).then(data => {
-                console.log(data);
-                state.bearer = data.key;
-                document.getElementById("bearer-input").value = state.bearer;
-                window.history.replaceState({}, document.title, window.location.pathname);
-                saveState();
-            })
-        }
 
 
     </script>
@@ -1835,12 +1641,17 @@ async function updateVariable(inputVar, outputVar) {
     <button onclick="confirmFileSelection()">打开</button>
     <button onclick="closeFileSelectModal()">取消</button>
 </div>
-
+    <script src='init.js'></script>
+    <script src='AIoverAI.js'></script>
+    
     <script src='google_drive.js'></script>
     <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-
     <script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()"></script>
+    <script src='render.js'></script>
+
     <script src='callAPI.js'></script>
+    
+    
 </body>
 
 </html>
