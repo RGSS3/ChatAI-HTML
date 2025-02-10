@@ -44,7 +44,7 @@ Github Pages [在线地址](https://rgss3.github.io/ChatAI-HTML)
 ### b. 手动输入输出与上下文压缩
  如果API端点设置为`"manual"`，您可以手动输入和输出聊天内容。同时，提供了一个简单的上下文压缩接口，默认设置为Kobold的`http://localhost:5001`。您可以将请求手动复制到Poe或其他非API端点使用。  
 
-如果API端点设置为`"openrouter"`，效果等同于直接填写OpenRouter的API完整URL（如`"https://api.openrouter.ai/api/v1/chat/completions"`），仅作为简写形式提供，方便快速配置。
+如果API端点设置为`"openrouter"`，效果等同于直接填写OpenRouter的API完整URL（即`"https://openrouter.ai/api"`），仅作为简写形式提供，方便快速配置。
 
 ### c. 文本格式导入导出
 支持导入和导出文本格式的聊天记录，方便您在不同平台或设备之间迁移数据。
