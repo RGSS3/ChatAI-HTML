@@ -75,10 +75,6 @@ async function callAPI(messages, options = {}) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${state.bearer}`,
                 'X-Title': 'UYP App',
-                ...(state.endpoint === 'openrouter' ? {
-                    'HTTP-Referer': window.location.href,
-                    'X-Title': 'UYP App'
-                } : {})
             },
             body: JSON.stringify(requestBody)
         });
@@ -139,11 +135,12 @@ async function callAPI(messages, options = {}) {
     }
 }
 function showManualInputDialog(messages, requestBody) {
+    console.log(messages)
     return new Promise((resolve) => {
         const formatJSON = (obj) => {
             return JSON.stringify(obj, null, 2);
         };
-        console.log(messages)
+        
         const formattedMessages = messages.map(msg => {
             let context
             if (msg.compressed) {
@@ -301,16 +298,16 @@ function showManualInputDialog(messages, requestBody) {
         const modalContainer = document.createElement('div');
         modalContainer.innerHTML = modalHtml;
         document.body.appendChild(modalContainer);
-        const messages = modalContainer.querySelector('[data-id=formattedMessages]');
+        const messagesText = modalContainer.querySelector('[data-id=formattedMessages]');
         const copyMessages = modalContainer.querySelector('[data-id=copyMessages]');
         const requestBodyJson = modalContainer.querySelector('[data-id=requestBodyJson]');
         const copyJson = modalContainer.querySelector('[data-id=copyJson]');
         const manualResponse = modalContainer.querySelector('[data-id=manualResponse]');
         const confirm = modalContainer.querySelector('[data-id=confirm]');
 
-        messages.textContent = formattedMessages;
+        messagesText.value = formattedMessages;
         requestBodyJson.value = JSON.stringify(requestBody, null, 2);
-        copyMessages.addEventListener('click', () => copyToClipboard(messages, copyMessages));
+        copyMessages.addEventListener('click', () => copyToClipboard(messagesText, copyMessages));
         copyJson.addEventListener('click', () => copyToClipboard(requestBodyJson, copyJson));
         confirm.addEventListener('click', () => submitManualResponse());
 
@@ -333,7 +330,7 @@ function showManualInputDialog(messages, requestBody) {
 
         // 提交功能
         function submitManualResponse() {
-            const response = document.getElementById('manualResponse').value;
+            const response = manualResponse.value;
             document.body.removeChild(modalContainer);
             resolve(response);
         };
