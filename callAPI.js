@@ -1,9 +1,15 @@
+const knownURI = {
+    'openrouter': 'https://openrouter.cn/api',
+    'aliyun': 'https://dashscope.aliyuncs.com/compatible-mode'
+}
+
 async function callAPI(messages, options = {}) {
     const {
         stream = true,
         onToken = null,
         onComplete = null,
-        onError = null
+        onError = null,
+        onReason = null,
     } = options;
 
     try {
@@ -65,9 +71,12 @@ async function callAPI(messages, options = {}) {
 
         
         // 如果是openrouter，使用完整API endpoint
+        /*
         const apiEndpoint = state.endpoint === 'openrouter' 
             ? 'https://openrouter.ai/api/v1/chat/completions'
             : state.endpoint + '/v1/chat/completions';
+        */
+        const apiEndpoint = (state.endpoint in knownURI ? knownURI[state.endpoint] : state.endpoint) + '/v1/chat/completions';
 
         const response = await fetch(apiEndpoint, {
             method: 'POST',
@@ -88,6 +97,7 @@ async function callAPI(messages, options = {}) {
             const decoder = new TextDecoder();
             let buffer = '';
             let fullContent = '';
+            let fullReason = '';
 
             while (true) {
                 const { value, done } = await reader.read();
@@ -112,6 +122,16 @@ async function callAPI(messages, options = {}) {
                                 const token = json.choices[0].delta.content;
                                 fullContent += token;
                                 if (onToken) onToken(token, fullContent);
+                            }
+                            if (json.choices && json.choices[0].delta && json.choices[0].delta.reasoning_content) {
+                                const token = json.choices[0].delta.reasoning_content;
+                                fullReason += token;
+                                if (onReason) {
+                                    onReason(token, fullReason);
+                                } else {
+                                    if (onToken) onToken(token, 
+                                    '<think>' + fullReason + '</think>' + fullContent);
+                                }
                             }
                         } catch (e) {
                             console.warn('Failed to parse JSON:', jsonStr);

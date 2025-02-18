@@ -414,10 +414,38 @@
                 window.location.href = url;
             }
 
+            const model_search = document.getElementById('model-search');
+            model_search.addEventListener('keydown', async (event) => {
+                // esc, value = state.model
+                // enter, state.model = value, saveState()
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    model_search.value = state.model;
+                    model_search.blur();
+                    return;
+                }
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    state.model = model_search.value;
+                    saveState();
+                    return;
+                }
+            })
+
+
             // 获取模型列表
             async function fetchModels() {
                 try {
-                    const endpoint = document.getElementById('endpoint-input').value;
+                    const pre_endpoint = document.getElementById('endpoint-input').value;
+                    if (!pre_endpoint || pre_endpoint == 'manual') {
+                        return ['manual']
+                    }
+                    let endpoint;
+                    if (pre_endpoint == 'openrouter') {
+                        endpoint = 'https://openrouter.ai/api';
+                    } else {
+                        endpoint = pre_endpoint;
+                    }
                     const bearer = document.getElementById('bearer-input').value;
 
                     const response = await fetch(`${endpoint}/v1/models`, {
@@ -722,7 +750,13 @@
                 // content
                 // \n
                 // save as title.txt
-                const text = state.chatHistory.map((message) => {
+                let filterAI = false;
+                if (confirm("Only AI?")) {
+                    filterAI = true;
+                }
+                const text = state.chatHistory.filter((message) => {
+                   return filterAI ? message.role === 'assistant' : true;
+                }).map((message) => {
                     return `---[${message.name}:${message.role}]---
 ${message.content}
 `;
@@ -1008,7 +1042,7 @@ ${message.content}
         
 
         // 导入导出功能
-        async function exportChat() {
+        window.exportChat = async function exportChat() {
             const zip = new JSZip();
             
             // 创建导出数据的深拷贝，移除 API key
@@ -1360,22 +1394,25 @@ async function sendMessage() {
             role: 'user',
             name: 'user',
             content: input,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            reasoning_content: ''
         };
         
         state.chatHistory.push(userMessage);
         renderMessages();
     }
-
+    
     // 添加初始空的助手消息
     const assistantMessage = {
         role: 'assistant',
         name: state.model,
         content: '',
+        reasoning_content: '',
         timestamp: Date.now()
     };
     state.chatHistory.push(assistantMessage);
     renderMessages();
+    
 
     try {
         // 处理模板得到完整上下文
@@ -1389,6 +1426,11 @@ async function sendMessage() {
             stream: true,
             onToken: (token) => {
                 assistantMessage.content += token;
+                assistantMessage.timestamp = Date.now();
+                renderMessages();
+            },
+            onReason: (token) => {
+                assistantMessage.reasoning_content += token;
                 assistantMessage.timestamp = Date.now();
                 renderMessages();
             },
@@ -1431,8 +1473,10 @@ async function continueMessage() {
     
     processedMessages.push({
         ...lastMessage,
+        role: 'user',
         content: lastMessage.content
     });
+
     
     try {
         await callAPI(processedMessages, {
@@ -1440,6 +1484,12 @@ async function continueMessage() {
             onToken: (token) => {
                 continuedMessage.content += token;
                 state.chatHistory[state.chatHistory.length - 1].content = continuedMessage.content;
+                state.chatHistory[state.chatHistory.length - 1].timestamp = Date.now();
+                renderMessages();
+            },
+            onReason: (token) => {
+                continuedMessage.reasoning_content += token;
+                state.chatHistory[state.chatHistory.length - 1].reasoning_content = continuedMessage.reasoning_content;
                 state.chatHistory[state.chatHistory.length - 1].timestamp = Date.now();
                 renderMessages();
             },
@@ -1473,6 +1523,7 @@ async function nextMessage() {
         role: 'assistant',
         name: state.model,
         content: '',
+        reasoning_content: '',
         timestamp: Date.now()
     };
     
@@ -1486,6 +1537,7 @@ async function nextMessage() {
         role: 'assistant',
         name: '',
         content: ``,
+        reasoning_content: '',
     };
     processedMessages.push(lastProcessedMessage);
     
@@ -1494,6 +1546,11 @@ async function nextMessage() {
             stream: true,
             onToken: (token) => {
                 assistantMessage.content += token;
+                assistantMessage.timestamp = Date.now();
+                renderMessages();
+            },
+            onReason: (token) => {
+                assistantMessage.reasoning_content += token;
                 assistantMessage.timestamp = Date.now();
                 renderMessages();
             },
@@ -1523,7 +1580,7 @@ function parseMessages(text) {
     let currentName = '';
     let currentTimestamp = null;
     
-    const messagePattern = /^---\[(\w+):([^:]+)(:(\d+))?\]---$/;
+    const messagePattern = /^---\[([^:]+):([^:]+)(:(\d+))?\]---$/;
     const lines = text.split('\n');
 
     lines.forEach(line => {

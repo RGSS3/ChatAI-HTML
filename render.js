@@ -1,3 +1,28 @@
+(function () {
+    let deepthink = document.createElement('style');
+    // make deepseek <think> look like <blockquote>
+    deepthink.textContent = `
+        think {
+            display: block;
+            margin: 1rem 0;
+            padding: 0.5rem 1rem;
+            border-left: 0.25rem solid #ccc;
+            background-color: #f9f9f9;
+            border-radius: 0.25rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #333;
+        }
+        think::before {
+            content: '🤔';
+            margin-right: 0.5rem;
+            font-size: 1rem;
+            color: #666;
+        }
+    `;
+    document.head.appendChild(deepthink);      
+})()
+
 function renderMessages() {
     const messagesDiv = document.getElementById('messages');
     messagesDiv.innerHTML = '';
@@ -18,7 +43,7 @@ function renderMessages() {
         <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center;">
             <span>${msg.name} - ${new Date(msg.timestamp).toLocaleString()}</span>
         </div>
-        <div class="message-content">${msg.content}</div>
+        <div class="message-content"></div>
     `;
         } else {
             let content;
@@ -36,11 +61,25 @@ function renderMessages() {
                 <button class="delete-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">删除</button>
                 <button class="add-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">添加</button>
                 <button class="compress-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">压缩</button>
+                <button class="fork-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">分叉</button>
                 ${lastButton}
             </div>
         </div>
-        <div class="message-content">${content}</div>
+        <div class="message-content"></div>
     `;
+        
+        if (msg.reasoning_content) {
+            content = '<think>' + msg.reasoning_content + '</think>' + content;
+        }
+        msgDiv.querySelector('.message-content').innerHTML = content;
+        /*
+        for (let think of msgDiv.querySelectorAll('think')) {
+            // deepseek special tag, make it clickable and collapsible
+            think.addEventListener('click', () => {
+                think.classList.toggle('deepseek-collapsed-think');
+            });
+        }
+        */
             
 
             // 添加事件监听器
@@ -49,6 +88,19 @@ function renderMessages() {
             const addBtn = msgDiv.querySelector('.add-btn');
             const resendBtn = msgDiv.querySelector('.resend-btn');
             const compressBtn = msgDiv.querySelector('.compress-btn');
+            const forkBtn = msgDiv.querySelector('.fork-btn');
+
+            forkBtn.addEventListener('click', async () => {
+                // 调用window.exportChat, 需要await
+                // 然后删除这条消息后面的全部消息
+                try {
+                    await window.exportChat();
+                    state.chatHistory.splice(index + 1);
+                    renderMessages();
+                } catch (e){
+                    pageAlert('分叉失败', '分叉按钮');
+                }
+            })
 
 
             compressBtn.addEventListener('click', async () => {
