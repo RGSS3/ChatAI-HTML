@@ -1,3 +1,5 @@
+Here's the modified content with your requested changes:
+
 # ChatAI-HTML
 
 这是一个轻量级的本地聊天界面实现，完全基于HTML/JavaScript运行，无需服务器。设计用于与各类AI聊天接口集成，支持变量、模板和上下文管理。
@@ -13,14 +15,14 @@ Github Pages [在线地址](https://rgss3.github.io/ChatAI-HTML)
 - 📋 完整的上下文管理
 - 🎨 支持自定义消息处理器
 - 📱 响应式设计，支持移动端
+- 🤖 AI管理器：支持为变量、压缩和消息分别配置不同AI
+- 🔑 密钥管理器：分离AI配置和密钥存储
 
 ## 快速开始
 
 1. 下载项目文件
 2. 在浏览器中打开`index.html`
 3. 开始使用！
-
-**注意** 如果用OpenRouter, 可以用手动填写的API Key或者自动授权，自动授权不能是本地地址，您可以直接使用本项目提供的 [GitHub Pages](https://rgss3.github.io/ChatAI-HTML)，或者自行搭建一个HTTPS服务器来启用此功能。
 
 ## 模板系统
 
@@ -41,17 +43,14 @@ Github Pages [在线地址](https://rgss3.github.io/ChatAI-HTML)
 
 **注意2**: Google的自动授权会弹出窗口，你可能需要检查和放行Popup Windows.
 
-### b. 手动输入输出与上下文压缩
- 如果API端点设置为`"manual"`，您可以手动输入和输出聊天内容。同时，提供了一个简单的上下文压缩接口，默认设置为Kobold的`http://localhost:5001`。您可以将请求手动复制到Poe或其他非API端点使用。  
+### b. AI管理器
+支持为不同类型的操作（变量处理、消息压缩、对话）配置不同的AI模型。手动输入功能现已整合到AI管理器中，作为一个特殊的AI端点，可以在任何需要AI的场景下使用（如自行回复或从web AI获取回复）。
 
-如果API端点设置为`"openrouter"`，效果等同于直接填写OpenRouter的API完整URL（即`"https://openrouter.ai/api"`），仅作为简写形式提供，方便快速配置。
+### c. 密钥管理器
+新增独立的密钥管理系统，将AI配置与密钥存储分离。AI管理器仅引用密钥ID，密钥内容单独管理。虽然仍以明文形式存储在浏览器中，但在导入导出状态时只保存和聊天记录AI配置，不包含密钥信息。
 
-### c. 文本格式导入导出
+### d. 文本格式导入导出
 支持导入和导出文本格式的聊天记录，方便您在不同平台或设备之间迁移数据。
-
-## 自定义集成
-
-您可以通过覆盖`callAPI.js`文件来实现自定义集成。例如，当前的`manual`模式就是通过覆盖`callAPI.js`来实现的。
 
 ## 变量管理
 
@@ -81,7 +80,8 @@ Github Pages [在线地址](https://rgss3.github.io/ChatAI-HTML)
 
 - 纯HTML/CSS/JavaScript
 - Marked.js用于Markdown渲染
-- 无其他外部依赖
+- JSZip打包操作
+
 
 ## 待办事项
 
@@ -92,7 +92,9 @@ Github Pages [在线地址](https://rgss3.github.io/ChatAI-HTML)
 ## 致谢
 
 - Claude 3.5 Sonnet (Anthropic) - 协助开发
+- Gemini 2 Flash (Google AI Studio) - 协助开发
 - Marked.js - Markdown渲染支持
+- JSZip - 到处都在用
 
 ---
 
