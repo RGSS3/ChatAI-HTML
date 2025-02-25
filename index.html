@@ -10,7 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>    
 
     
 
@@ -73,7 +73,7 @@
 
 <body>
     <div id="app">
-        <div id="left-panel"></div>
+        <!-- <div id="left-panel"></div> -->
         <div id="chat-area"></div>
         <div id="right-panel"></div>
     </div>
@@ -128,6 +128,7 @@
         state.compress = state.compress || {
             cache: {}
         }
+        
 
         // 从localStorage加载状态
         function loadState() {
@@ -135,6 +136,11 @@
             if (savedState) {
                 state = JSON.parse(savedState);
             }
+            state.aihubconfig = state.aihubconfig || {}
+            AIHub.setConfig(state.aihubconfig);
+            AIHub.setOnUpdate(() => {
+                saveState();
+            });
         }
 
         // 保存状态到localStorage
@@ -145,7 +151,7 @@
         // 初始化界面
         function initializeUI() {
             document.querySelector('#app').innerHTML = `
-                <div id="left-panel"></div>
+                <!-- <div id="left-panel"></div> -->
                 <div id="chat-area"></div>
                 <div id="right-panel"></div>
             `
@@ -363,6 +369,7 @@
         document.head.appendChild(style);
 
         function initializeLeftPanel() {
+            return
             const leftPanel = document.getElementById('left-panel');
 
             // API设置区域
@@ -440,12 +447,14 @@
                     if (!pre_endpoint || pre_endpoint == 'manual') {
                         return ['manual']
                     }
-                    let endpoint;
+                    const endpoint = window.translate_known(pre_endpoint)
+                    /*
                     if (pre_endpoint == 'openrouter') {
                         endpoint = 'https://openrouter.ai/api';
                     } else {
                         endpoint = pre_endpoint;
-                    }
+                    }*/
+
                     const bearer = document.getElementById('bearer-input').value;
 
                     const response = await fetch(`${endpoint}/v1/models`, {
@@ -624,6 +633,7 @@
                 style="width: 95%; padding: 0.5rem; border: 1px solid #cbd5e0; border-radius: 0.25rem; resize: vertical; min-height: 80px;"
                 placeholder="Type your message here..."></textarea>
             <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
+            <button id="config-send" class="button button-list">Config</button>
             <button id="send-button" class="button button-list">Send</button>
 	        <button id="toggle-button" class="button button-list">Toggle</button>
             <button id="continue-button" class="button button-list">Continue</button>
@@ -650,14 +660,14 @@
             })
             document.getElementById('continue-button').addEventListener('click', continueMessage);
             document.getElementById('next-button').addEventListener('click', nextMessage);
-
+            AIHub.drawButton(document.getElementById('config-send'), 'main')
 	    
 
             renderMessages();
         }
 
         // 右侧面板初始化
-        function initializeRightPanel() {
+        async function initializeRightPanel() {
             
             const rightPanel = document.getElementById('right-panel');
             rightPanel.innerHTML = `
@@ -704,6 +714,9 @@
                         <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                     </svg>
                 </button>
+                <button id="config-variable" class="button button-function" >
+
+                </button>
             </div>
             
         </div>
@@ -723,6 +736,8 @@
 
                 <button id="import-text" class="button">Import Text</button>
                 <button id="export-text" class="button">Export Text</button>
+                <button id="import-key" class="button">Import Key</button>
+                <button id="export-key" class="button">Export Key</button>
                 <input type="file" id="import-text-file" style="display: none;">
                 <div class='separator'></div>
                 <!--<button id="signInButton" onclick="handleAuthClick()">Sign in with Google</button> -->
@@ -741,6 +756,33 @@
             </div>
         </div>
     `;
+            document.getElementById('import-key').addEventListener('click', importKey);
+            document.getElementById('export-key').addEventListener('click', exportKey);
+            const fs = await FileSystem.create({model: 'file'})
+            async function importKey() {
+                try {
+                    let contentZip = fs.read_content('dummy');
+                    // use JSZip
+                    let zip = await JSZip.loadAsync(contentZip)
+                    let content = await zip.file('key.json').async('string');
+                    KeyHub.setContent(content);
+                    pageAlert('Key imported successfully');
+                } catch (e) {
+                    pageAlert('Key import failed');
+                }
+            }
+            async function exportKey() {
+                try {
+                    // use JSZip and fs.write_content('key.zip', zip.generateAsync({ type: 'blob' }));
+                    const zip = new JSZip();
+                    await zip.file('key.json', JSON.stringify(KeyHub.getContent()));
+                    let content = await zip.generateAsync({ type: 'blob' })
+                    await fs.write_content('key.zip', content);
+                    pageAlert('Key exported successfully');
+                } catch (e) {
+                    pageAlert('Key export failed');
+                }
+            }
             document.getElementById('export-text').addEventListener('click', exportText);
 
             function exportText() {
@@ -935,6 +977,7 @@ ${message.content}
                 // 直接用选中的变量名称加上"_result"作为输出变量
                 updateVariable(selectedVar, selectedVar + '_result');
             });
+            AIHub.drawButton(document.getElementById("config-variable"), "variables")
         }
 
         function executeVariableWith(selectedVar) {
@@ -1422,7 +1465,7 @@ async function sendMessage() {
         
 
         // 调用API
-        await callAPI(contextMessages, {
+        await AIHub.callAPI('main', contextMessages, {
             stream: true,
             onToken: (token) => {
                 assistantMessage.content += token;
@@ -1479,7 +1522,7 @@ async function continueMessage() {
 
     
     try {
-        await callAPI(processedMessages, {
+        await AIHub.callAPI('main', processedMessages, {
             stream: true,
             onToken: (token) => {
                 continuedMessage.content += token;
@@ -1542,7 +1585,7 @@ async function nextMessage() {
     processedMessages.push(lastProcessedMessage);
     
     try {
-        await callAPI(processedMessages, {
+        await AIHub.callAPI('main', processedMessages, {
             stream: true,
             onToken: (token) => {
                 assistantMessage.content += token;
@@ -1653,10 +1696,18 @@ async function updateVariable(inputVar, outputVar) {
         // 处理输入变量内容作为模板
         const processedContent = processContextV2(document.getElementById('message-input').value || '', inputContent);
         const messages = parseMessages(processedContent);
+        const display = AIHub.previewStream();
         
         // 调用API获取结果
-        const result = await callAPI(messages, {
-            stream: false,
+        const result = await AIHub.callAPI('variables', messages, {
+            stream: true,
+            onToken: (token, fullContent) => {
+                display.setContent(fullContent);
+            },
+            onError: (err) => {
+                pageAlert(err);
+                display.dismiss();
+            },
             onComplete: (content) => {
                 // 将结果保存到输出变量
                 const back = outputVar + '_' + 'bak_' + (new Date().toLocaleString());
@@ -1671,6 +1722,7 @@ async function updateVariable(inputVar, outputVar) {
                     contentBox.value = state.variables[outputVar];
                 }
                 saveState()
+                display.dismiss();
             }
         });
     } catch (error) {
@@ -1707,7 +1759,13 @@ async function updateVariable(inputVar, outputVar) {
     <script src='render.js'></script>
 
     <script src='callAPI.js'></script>
-    
+    <script src='aihub.js'></script>
+    <script src='keyhub.js'></script>
+    <script type=module> 
+        import FileSystem from './filesystem.js'
+        window.FileSystem = FileSystem
+    </script>    
+    <div id="myContainer"></div>
     
 </body>
 

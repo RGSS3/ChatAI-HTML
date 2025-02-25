@@ -350,6 +350,7 @@ async function compress(originText, previous) {
 请完成上述压缩任务（约400字符左右）
 `; // Default prompt
   
+  /*
   const endpointLabel = document.createElement('div');
   endpointLabel.textContent = 'API Endpoint:';
   
@@ -381,6 +382,7 @@ async function compress(originText, previous) {
           pageAlert(error.message)
       }
   });
+  */
 
   
   const inputLabel = document.createElement('div');
@@ -430,6 +432,17 @@ async function compress(originText, previous) {
     cursor: pointer;
   `;
 
+  const compressAIConfigBtn = document.createElement('button');
+  compressAIConfigBtn.style.cssText = `
+    padding: 8px 16px;
+    background: #2196F3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  `;
+  AIHub.drawButton(compressAIConfigBtn, "compress")
+
   const confirmBtn = document.createElement('button');
   confirmBtn.textContent = '确认';
   confirmBtn.style.cssText = `
@@ -457,10 +470,11 @@ async function compress(originText, previous) {
     state.compress.prompt = promptText.value;
   });
 
+  /*
   endpointInput.addEventListener('input', () => {
     state.compress.endpoint = endpointInput.value;
   });
-
+  */
   resultText.value = previous || '';
 
 
@@ -473,46 +487,105 @@ async function compress(originText, previous) {
   
 
 compressBtn.onclick = async () => {
-  try {
-    compressBtn.disabled = true;
-    compressBtn.textContent = '压缩中...';
-
-    const config = await parseEndpoint(endpointInput.value || '');
-    if (config) {
-        endpointInput.value = JSON.stringify(config);
-        // dispatch onInput
-        endpointInput.dispatchEvent(new Event('input'));
-    }
-    let headers = {
-        'Content-Type': 'application/json'
-    }
-    if (config.key) {
-        headers['Authorization'] = 'Bearer ' + config.key
+    async function copyToClipboard (element, button) {
+        try {
+            await navigator.clipboard.writeText(element.value);
+            const originalText = button.textContent;
+            button.textContent = '已复制！';
+            button.style.background = '#4CAF50';
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.background = '#2196F3';
+            }, 1000);
+        } catch (err) {
+            console.error('复制失败:', err);
+            alert('复制失败，请手动复制');
+        }
     };
-    
+  try {
+        compressBtn.disabled = true;
+        compressBtn.textContent = '压缩中...';
 
-    const response = await fetch(config.url + '/v1/chat/completions', {
-      method: 'POST', 
-      headers,
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          {role: "user", content: await processContextV2(inputText.value, promptText.value)},
-        ],
-        ...config.params, // Spread additional parameters
-        max_tokens: config.params.max_tokens || 800,
-        temperature: config.params.temperature || 0.4,
-      })
-    });
+        // 创建浮层
+        const compressInfoDiv = document.createElement('div');
+        compressInfoDiv.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 100000;
+            font-size: 16px;
+        `;
+        compressInfoDiv.textContent = '压缩中，请稍候...';
+        document.body.appendChild(compressInfoDiv);
 
-    const result = await response.json();
-    resultText.value = result?.choices?.[0]?.message?.content || '';
-  } catch(err) {
-    alert('Error: ' + err.message); 
-  } finally {
-    compressBtn.disabled = false;
-    compressBtn.textContent = '压缩';
-  }
+        const context = await processContextV2(inputText.value, promptText.value);
+        const messages = parseMessages(context)
+
+        console.log(messages, context)
+        await AIHub.callAPI('compress', messages, {
+            onToken: (token, fullContent) => {
+                compressInfoDiv.textContent = '压缩中：' + fullContent;
+            },
+            onComplete: async (fullContent) => {
+                resultText.value = fullContent;
+                compressBtn.disabled = false;
+                compressBtn.textContent = '压缩';
+                document.body.removeChild(compressInfoDiv); // 移除浮层
+            },
+            onError: (err) => {
+                pageAlert('Error: ' + err.message);
+                document.body.removeChild(compressInfoDiv); // 移除浮层
+            }
+        })
+
+        /*
+        if (endpointInput.value !== 'manual') {
+            const config = await parseEndpoint(endpointInput.value || '');
+            if (config) {
+                endpointInput.value = JSON.stringify(config);
+                // dispatch onInput
+                endpointInput.dispatchEvent(new Event('input'));
+            }
+            let headers = {
+                'Content-Type': 'application/json'
+            }
+            if (config.key) {
+                headers['Authorization'] = 'Bearer ' + config.key
+            };
+            
+            
+            const response = await fetch(config.url + '/v1/chat/completions', {
+            method: 'POST', 
+            headers,
+            body: JSON.stringify({
+                model: config.model,
+                messages: [
+                {role: "user", content: await processContextV2(inputText.value, promptText.value)},
+                ],
+                ...config.params, // Spread additional parameters
+                max_tokens: config.params.max_tokens || 800,
+                temperature: config.params.temperature || 0.4,
+            })
+            });
+
+            const result = await response.json();
+            resultText.value = result?.choices?.[0]?.message?.content || '';
+        } else {
+            resultText.value = await processContextV2(inputText.value, promptText.value);
+            await copyToClipboard(resultText, compressBtn);
+            pageAlert('已复制到剪贴板');
+        }*/
+    } catch(err) {
+        pageAlert('Error: ' + err.message); 
+        compressBtn.disabled = false;
+        compressBtn.textContent = '压缩';
+    }  finally {
+    }
 };
 
   confirmBtn.onclick = () => {
@@ -528,13 +601,16 @@ compressBtn.onclick = async () => {
   // Assemble modal
   buttonContainer.appendChild(cancelBtn);
   buttonContainer.appendChild(compressBtn);
+  buttonContainer.appendChild(compressAIConfigBtn);
   buttonContainer.appendChild(confirmBtn);
   
   leftColumn.appendChild(promptLabel);
   leftColumn.appendChild(promptText);
+  /*
   leftColumn.appendChild(endpointLabel);
   leftColumn.appendChild(endpointInput);
   leftColumn.appendChild(endpointParse);
+  */
   leftColumn.appendChild(inputLabel);
   leftColumn.appendChild(inputText);
 

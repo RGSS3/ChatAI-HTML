@@ -1,6 +1,10 @@
 const knownURI = {
-    'openrouter': 'https://openrouter.cn/api',
+    'openrouter': 'https://openrouter.ai/api',
     'aliyun': 'https://dashscope.aliyuncs.com/compatible-mode'
+}
+
+window.translate_known = function(name) {
+    return knownURI[name] || name
 }
 
 async function callAPI(messages, options = {}) {
@@ -76,7 +80,9 @@ async function callAPI(messages, options = {}) {
             ? 'https://openrouter.ai/api/v1/chat/completions'
             : state.endpoint + '/v1/chat/completions';
         */
-        const apiEndpoint = (state.endpoint in knownURI ? knownURI[state.endpoint] : state.endpoint) + '/v1/chat/completions';
+        const apiEndpoint1 = (state.endpoint in knownURI ? knownURI[state.endpoint] : state.endpoint);
+        const apiEndpoint2 = apiEndpoint1;
+        const apiEndpoint = (apiEndpoint2 + '/chat/completions').replace(/(?<!:)\/\/+/g, '/');
 
         const response = await fetch(apiEndpoint, {
             method: 'POST',
@@ -168,7 +174,7 @@ function showManualInputDialog(messages, requestBody) {
             } else {
                 context = msg.content
             }
-            return `--- [${msg.name}:${msg.role}] --- \n\n${context}`;
+            return `---[${msg.name}:${msg.role}]---\n\n${context}`;
         }).join('\n\n');
 
         const modalHtml = `

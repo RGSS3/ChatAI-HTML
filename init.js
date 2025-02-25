@@ -2,6 +2,19 @@ document.addEventListener('DOMContentLoaded', function() {
     loadState();
     initializeUI();
     initializeVariables();
+    const keys = localStorage.getItem('keys');
+    if (keys) {
+        try {
+            const content = JSON.parse(keys);
+            KeyHub.setContent(content);
+        } catch (e) {
+            
+        }
+    }
+    KeyHub.setOnUpdate(
+        () => localStorage.setItem('keys', JSON.stringify(KeyHub.keys))
+    )
+    
 
 // 添加到 HTML
 
@@ -22,6 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 saveState();
             })
         }
+
 
        
 })

@@ -384,60 +384,180 @@ async function pageAlert(content, title = '') {
     alertDiv.remove();
 }
 
+async function generalSelect(list = [], title = "请选择一项", defaultValue = null, initialValue = null) {
+    return new Promise((resolve, reject) => {
+        const modalHtml = `
+            <div data-id="generalSelectModal" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                font-family: 'Arial', sans-serif;
+                color: #333;
+            ">
+                <div style="
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    width: 90%;
+                    max-width: 600px;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                ">
+                    <h3 style="margin-bottom: 15px; color: #555;">${title}</h3>
+                    <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                        <input type="text" data-id="searchInput" placeholder="搜索..." style="
+                            width: 100%;
+                            padding: 10px;
+                            border: 1px solid #ddd;
+                            border-radius: 5px;
+                            font-size: 14px;
+                            box-sizing: border-box;
+                        ">
+                        <ul data-id="suggestionList" style="
+                            list-style: none;
+                            padding: 0;
+                            margin: 0;
+                            border: 1px solid #ddd;
+                            border-radius: 5px;
+                            background-color: #f9f9f9;
+                            max-height: 200px;
+                            overflow-y: auto;
+                            display: none; /* 初始状态隐藏 */
+                            position: absolute;
+                            z-index: 10001;
+                            width: calc(100% - 2px); /* 减去边框宽度 */
+                        "></ul>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                        <button data-id="confirmButton" style="
+                            background-color: #5cb85c;
+                            color: white;
+                            padding: 12px 20px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            font-size: 14px;
+                        ">确定</button>
+                        <button data-id="cancelButton" style="
+                            background-color: #d9534f;
+                            color: white;
+                            padding: 12px 20px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            font-size: 14px;
+                        ">取消</button>
+                    </div>
+                </div>
+            </div>
+        `;
 
-async function parseEndpoint(endpoint) {
-  let config;
-  if(endpoint.trim().startsWith('{')) {
-    // Try parse as JSON directly
-    try {
-      config = JSON.parse(endpoint);
-    } catch(e) {
-      throw new Error('Invalid JSON format');
-    }
-  } else {
-    // Use primitiveAI to get config
-    try {
-      const prompt = `Convert the following API endpoint configuration to a JSON object with these fields:
-- url: The API endpoint URL
-- model: The model name to use
-- params: Additional parameters like temperature, max_tokens etc.
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
 
-Known: Openrouter is 'https://openrouter.ai/api'
-If not provided, provide max_tokens and temperature and stop_sequences
+        const searchInput = modalContainer.querySelector('[data-id="searchInput"]');
+        const suggestionList = modalContainer.querySelector('[data-id="suggestionList"]');
+        const confirmButton = modalContainer.querySelector('[data-id="confirmButton"]');
+        const cancelButton = modalContainer.querySelector('[data-id="cancelButton"]');
 
-Only return the JSON object, no other text.
+        let selectedId = initialValue || null;
 
-Input: ${endpoint}`;
+        // 填充建议列表
+        function populateSuggestions(items) {
+            suggestionList.innerHTML = '';
+            items.forEach(item => {
+                const listItem = document.createElement('li');
+                listItem.textContent = item.text || item.id;
+                listItem.style.padding = '10px';
+                listItem.style.cursor = 'pointer';
+                listItem.addEventListener('mouseover', () => {
+                    listItem.style.backgroundColor = '#ddd';
+                });
+                listItem.addEventListener('mouseout', () => {
+                    listItem.style.backgroundColor = '';
+                });
+                listItem.addEventListener('click', () => {
+                    selectedId = item.id;
+                    searchInput.value = item.text || item.id;
+                    suggestionList.style.display = 'none';
+                });
+                suggestionList.appendChild(listItem);
+            });
+        }
 
-      const result = await primitiveAI(prompt);
-      
-      try {
-        config = JSON.parse(result);
-      } catch(e) {
-        throw new Error('Failed to parse AI response as JSON');
-      }
-    } catch(e) {
-      throw new Error('Failed to process endpoint: ' + e.message);
-    }
-  }
+        // 搜索功能
+        searchInput.addEventListener('input', () => {
+            const searchTerm = searchInput.value.toLowerCase();
+            const filteredList = list.filter(item => (item.text || item.id || '').toLowerCase().includes(searchTerm));
+            populateSuggestions(filteredList);
+            suggestionList.style.display = filteredList.length > 0 ? 'block' : 'none';
+        });
 
-  // Validate config
-  if(!config.url || typeof config.url !== 'string') {
-    config.url = 'https://openrouter.ai/api/v1/chat/completions';
-  }
-  if(!config.model || typeof config.model !== 'string') {
-    config.model = state.model;
-  }
-  if(!config.params || typeof config.params !== 'object') {
-    config.params = state.params;
-  }
-  if(!config.key || typeof config.key !== 'string') {
-    config.key = state.bearer;
-  }
+        // 失去焦点时隐藏建议列表
+        searchInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                suggestionList.style.display = 'none';
+            }, 100); // 延迟隐藏，防止点击事件失效
+        });
 
-  // Update input and trigger change event
-  const configStr = JSON.stringify(config, null, 2);
-  endpoint = configStr;
-  
-  return config;
+        // 确定按钮
+        confirmButton.addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+            if (selectedId) {
+                resolve(selectedId);
+            } else if (defaultValue !== null) {
+                resolve(defaultValue);
+            } else {
+                reject();
+            }
+        });
+
+        // 取消按钮
+        cancelButton.addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+            if (defaultValue !== null) {
+                resolve(defaultValue);
+            } else {
+                reject();
+            }
+        });
+
+        // ESC键关闭功能
+        const escListener = (e) => {
+            if (e.key === 'Escape') {
+                document.body.removeChild(modalContainer);
+                document.removeEventListener('keydown', escListener);
+                if (defaultValue !== null) {
+                    resolve(defaultValue);
+                } else {
+                    reject();
+                }
+            }
+        };
+
+        document.addEventListener('keydown', escListener);
+
+        // 移除弹窗
+        modalContainer.addEventListener('click', (e) => {
+            if (e.target === modalContainer) {
+                document.body.removeChild(modalContainer);
+                document.removeEventListener('keydown', escListener);
+                if (defaultValue !== null) {
+                    resolve(defaultValue);
+                } else {
+                    reject();
+                }
+            }
+        });
+    });
 }
+
