@@ -86,10 +86,11 @@
 
 ## 致谢
 
-- Claude/Gemini - 开发协助
-- Marked.js - Markdown支持
-- JSZip - 数据处理
-- 开源社区的贡献者们
+- Claude 3.5 Sonnet - 系统架构设计与重构
+- Gemini 2 Flash - 前端交互优化
+- Marked.js - Markdown渲染支持
+- xterm.js - 终端模拟支持
+- JSZip - 数据处理支持
 
 ---
 
