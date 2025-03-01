@@ -129,8 +129,8 @@ async function callAPI(messages, options = {}) {
                                 fullContent += token;
                                 if (onToken) onToken(token, fullContent);
                             }
-                            if (json.choices && json.choices[0].delta && json.choices[0].delta.reasoning_content) {
-                                const token = json.choices[0].delta.reasoning_content;
+                            if (json.choices && json.choices[0].delta && (json.choices[0].delta.reasoning_content || json.choices[0].delta.reasoning)) {
+                                const token = json.choices[0].delta.reasoning_content || json.choices[0].delta.reasoning;
                                 fullReason += token;
                                 if (onReason) {
                                     onReason(token, fullReason);
@@ -139,6 +139,7 @@ async function callAPI(messages, options = {}) {
                                     '<think>' + fullReason + '</think>' + fullContent);
                                 }
                             }
+
                         } catch (e) {
                             console.warn('Failed to parse JSON:', jsonStr);
                         }

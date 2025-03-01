@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadState();
     initializeUI();
     initializeVariables();
+    
     const keys = localStorage.getItem('keys');
     if (keys) {
         try {

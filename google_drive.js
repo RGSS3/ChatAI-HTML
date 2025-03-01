@@ -302,6 +302,7 @@ async function openFromGoogleDrive() {
 
       // 更新后执行后续操作
       saveState();
+      updateAIHub();
       initializeUI();
       initializeVariables();
     

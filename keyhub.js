@@ -10,6 +10,11 @@ const KeyHub = window.KeyHub = {
     getContent: function() {
         return this.keys;
     },
+    emptyCheck: function() {
+        if (Object.keys(this.keys).length === 0) {
+            pageAlert("密钥是空的，是否没有导入? 注意 密钥不会保存在浏览器中，也不会保存在聊天状态里", "error");
+        }
+    },
     showKeyManager: async function() {
         return new Promise((resolve, reject) => {
             const modalHtml = `
@@ -23,7 +28,7 @@ const KeyHub = window.KeyHub = {
                     display: flex;
                     justify-content: center;
                     align-items: center;
-                    z-index: 10001;
+                    z-index: 100001;
                     font-family: 'Arial', sans-serif;
                     color: #333;
                 ">
@@ -330,9 +335,11 @@ const KeyHub = window.KeyHub = {
         delete this.keys[id];
     },
     getKey: function(id) {
+        this.emptyCheck();
         return this.keys[id] ? this.keys[id].key : null;
     },
     getHeader: function(header, key) {
+        this.emptyCheck();
         let x = this.getKey(key);
         if (x !== null) {
             header['Authorization'] = `Bearer ${x}`;

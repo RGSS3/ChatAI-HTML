@@ -19,6 +19,26 @@
             font-size: 1rem;
             color: #666;
         }
+        .vbtn {
+            background-color: #4299e1;
+            border: none;
+            color: #333;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-right: 0.5rem;
+        }
+        .vbtn.ignore-btn.ignored {
+            background-color: #ccc;
+            color: #666;
+        }
+        .message .message-content em {
+            color: #4299e1;
+            font-style: italic;
+            // smaller size
+            font-size: 0.8rem;
+        }
     `;
     document.head.appendChild(deepthink);      
 })()
@@ -35,7 +55,7 @@ function renderMessages() {
         msgDiv.style.borderRadius = '0.25rem';
         msgDiv.style.backgroundColor = msg.role === 'user' ? '#e3f2fd' : '#f5f5f5';
         const isLast = index === state.chatHistory.length - 1;
-        const lastButton = isLast ? `<button class='resend-btn' style='border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;'>重发</button>` : '';
+        const lastButton = isLast ? `<button class='resend-btn vbtn' style='border: none; cursor: pointer; font-size: 0.8rem;'>重发</button>` : '';
 
         // 如果是loading消息，直接使用content中的HTML
         if (msg.isLoading) {
@@ -57,11 +77,12 @@ function renderMessages() {
             <span>${msg.name} - ${new Date(msg.timestamp).toLocaleString()}</span>
             <div class="message-actions" style="display: flex; gap: 0.5rem;">
                 <span class="text-length" style="font-size: 0.8rem; color: #666;">${msg.content.length}字</span>
-                <button class="edit-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">修改</button>
-                <button class="delete-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">删除</button>
-                <button class="add-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">添加</button>
-                <button class="compress-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">压缩</button>
-                <button class="fork-btn" style="border: none; background: none; color: #666; cursor: pointer; font-size: 0.8rem;">分叉</button>
+                <button class="ignore-btn vbtn" style="border: none; cursor: pointer; font-size: 0.8rem;">忽略</button>
+                <button class="edit-btn  vbtn" style="border: none; cursor: pointer; font-size: 0.8rem;">修改</button>
+                <button class="delete-btn  vbtn" style="border: none; cursor: pointer; font-size: 0.8rem;">删除</button>
+                <button class="add-btn  vbtn" style="border: none;  cursor: pointer; font-size: 0.8rem;">添加</button>
+                <button class="compress-btn  vbtn" style="border:  cursor: pointer; font-size: 0.8rem;">压缩</button>
+                <button class="fork-btn  vbtn" style="border: none; cursor: pointer; font-size: 0.8rem;">分叉</button>
                 ${lastButton}
             </div>
         </div>
@@ -72,6 +93,10 @@ function renderMessages() {
             content = '<think>' + msg.reasoning_content + '</think>' + content;
         }
         msgDiv.querySelector('.message-content').innerHTML = content;
+        msgDiv.querySelector('.message-content').addEventListener('dblclick', () => {
+            // edit
+            showMessageDialog('edit', index, msg);
+        })
         /*
         for (let think of msgDiv.querySelectorAll('think')) {
             // deepseek special tag, make it clickable and collapsible
@@ -89,6 +114,27 @@ function renderMessages() {
             const resendBtn = msgDiv.querySelector('.resend-btn');
             const compressBtn = msgDiv.querySelector('.compress-btn');
             const forkBtn = msgDiv.querySelector('.fork-btn');
+            const ignoreBtn = msgDiv.querySelector('.ignore-btn');
+
+            if (msg.ignored) {
+                ignoreBtn.innerText = '取消忽略';
+                ignoreBtn.classList.add('ignored');
+            } else {
+                ignoreBtn.innerText = '忽略';
+                ignoreBtn.classList.remove('ignored');
+            }
+
+            ignoreBtn.addEventListener('click', () => {
+                msg.ignored = !msg.ignored;
+                if (msg.ignored) {
+                    ignoreBtn.innerText = '取消忽略';
+                    ignoreBtn.classList.add('ignored');
+                } else {
+                    ignoreBtn.innerText = '忽略';
+                    ignoreBtn.classList.remove('ignored');
+                }   
+                saveState();
+            })
 
             forkBtn.addEventListener('click', async () => {
                 // 调用window.exportChat, 需要await
@@ -254,6 +300,7 @@ z-index: 999;
         if (type === 'edit') {
             // 修改消息
             state.chatHistory[index] = {
+                ...msg,
                 role,
                 content,
                 name,

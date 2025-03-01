@@ -11,7 +11,9 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>    
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     
 
 
@@ -136,6 +138,10 @@
             if (savedState) {
                 state = JSON.parse(savedState);
             }
+            updateAIHub();
+        }
+
+        function updateAIHub() {
             state.aihubconfig = state.aihubconfig || {}
             AIHub.setConfig(state.aihubconfig);
             AIHub.setOnUpdate(() => {
@@ -632,34 +638,41 @@
             <textarea id="message-input" 
                 style="width: 95%; padding: 0.5rem; border: 1px solid #cbd5e0; border-radius: 0.25rem; resize: vertical; min-height: 80px;"
                 placeholder="Type your message here..."></textarea>
-            <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
+            <div style="display: flex; justify-content: flex-start; margin-top: 0.5rem;">
+            
             <button id="config-send" class="button button-list">Config</button>
             <button id="send-button" class="button button-list">Send</button>
 	        <button id="toggle-button" class="button button-list">Toggle</button>
             <button id="continue-button" class="button button-list">Continue</button>
 	        <button id="next-button" class="button button-list">Next</button>
+            
+            <button id="ai-term-button" class="button button-list">Term</button>
             </div>
         </div>
     `;
+        // ai-term
+        document.getElementById('ai-term-button').addEventListener('click', () => {
+            AITerm.showTerm();
+        })
 	    document.getElementById('toggle-button').addEventListener('click', (e) => {
 
 		state.fullscreen = !state.fullscreen;
 		saveState();
 		const word = state.fullscreen ? 'block' : 'none';
-		document.getElementById('left-panel').style.display = 
+		//document.getElementById('left-panel').style.display = 
 		document.getElementById('right-panel').style.display = word;
 
 
 	    });
 
-            document.getElementById('send-button').addEventListener('click', sendMessage);
+            document.getElementById('send-button').addEventListener('click', () => sendMessage());
             document.getElementById('message-input').addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && e.ctrlKey) {
                     sendMessage();
                 }
             })
-            document.getElementById('continue-button').addEventListener('click', continueMessage);
-            document.getElementById('next-button').addEventListener('click', nextMessage);
+            document.getElementById('continue-button').addEventListener('click', () => continueMessage());
+            document.getElementById('next-button').addEventListener('click', () => nextMessage());
             AIHub.drawButton(document.getElementById('config-send'), 'main')
 	    
 
@@ -714,6 +727,13 @@
                         <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                     </svg>
                 </button>
+                <button id="send-variable" class="button button-function" title="Send Variable">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                    
+                </button>
                 <button id="config-variable" class="button button-function" >
 
                 </button>
@@ -756,19 +776,20 @@
             </div>
         </div>
     `;
+            
             document.getElementById('import-key').addEventListener('click', importKey);
             document.getElementById('export-key').addEventListener('click', exportKey);
             const fs = await FileSystem.create({model: 'file'})
             async function importKey() {
                 try {
-                    let contentZip = fs.read_content('dummy');
+                    let zip = await (await fs.read_content('dummy')).loadzip();
                     // use JSZip
-                    let zip = await JSZip.loadAsync(contentZip)
                     let content = await zip.file('key.json').async('string');
-                    KeyHub.setContent(content);
+                    KeyHub.setContent(JSON.parse(content));
                     pageAlert('Key imported successfully');
                 } catch (e) {
                     pageAlert('Key import failed');
+                    console.error(e)
                 }
             }
             async function exportKey() {
@@ -961,6 +982,18 @@ ${message.content}
                 await executeVariable();
             });
 
+            document.getElementById('send-variable').addEventListener('click', sendVariable);
+
+            async function sendVariable() {
+                let selectedVar = document.getElementById('variable-select').value;
+                if (!selectedVar) {
+                    pageAlert('No variable selected');
+                    return;
+                }
+                let context = state.variables[selectedVar];
+                await sendMessage(context, 'variables');
+            }
+
             // 添加更新按钮的事件处理
             document.getElementById('update-variable').addEventListener('click', () => {
                 let selectedVar = document.getElementById('variable-select').value;
@@ -980,7 +1013,7 @@ ${message.content}
             AIHub.drawButton(document.getElementById("config-variable"), "variables")
         }
 
-        function executeVariableWith(selectedVar) {
+        async function executeVariableWith(selectedVar) {
             // 获取变量内容并处理
             const content = state.variables[selectedVar];
             if (!content) {
@@ -990,19 +1023,22 @@ ${message.content}
             // state.lastInput = document.getElementById('message-input').value;
 
             // 直接使用现有的processContextV2处理变量内容
-            const processedContent = processContextV2(document.getElementById('message-input').value || '', content);
+            const processedContent = await processContextV2(document.getElementById('message-input').value || '', content);
+            renderVariableSelect();
+            saveState();
             // console.log('Executed variable result:', processedContent);
             return processedContent;
         }
 
-        function executeVariable() {
+        async function executeVariable() {
             const selectedVar = document.getElementById('variable-select').value;
             if (!selectedVar) {
                 console.warn('No variable selected');
                 return;
             }
 
-            const ret = executeVariableWith(selectedVar);
+            const ret = await executeVariableWith(selectedVar);
+            saveState();
             console.log(ret);
         }
 
@@ -1161,6 +1197,7 @@ ${message.content}
 
                 // 保存并更新 UI
                 saveState();
+                updateAIHub();
                 initializeUI();
                 initializeVariables();
 
@@ -1257,28 +1294,36 @@ function processContextV2(input, template) {
         input: () => input,
 
         // similar to context, but this counts for message count
-        msgnum: (length) => {
+        msgnum: (length, origin = false) => {
             let historyText = '';
             let currentLength = 0;
             length = parseInt(length) || Infinity;
             let c = 0
 
-            for (let i = state.chatHistory.length - 1; i >= 0 && c < length; i--, c++) {
+            for (let i = state.chatHistory.length - 1; i >= 0 && c < length; i--) {
                 const msg = state.chatHistory[i];
-                const content = msg.compressed ? `[已经经过压缩]{${msg.compressed}}` : msg.content;
+                if (msg.ignored) {
+                    continue;
+                }
+                const content = !origin && msg.compressed ? `[已经经过压缩]{${msg.compressed}}` : msg.content;
                 historyText = `---[${msg.role}:${msg.name}:${msg.timestamp}]---\n${content}\n\n${historyText}`;
+                ++c;
             }        
             return historyText.trim();
         },
-        
-        context: (maxLength) => {
+        omsgnum: (length) => this.msgnum(length, true),
+        context: (maxLength, origin = false) => {
             let historyText = '';
             let currentLength = 0;
             maxLength = parseInt(maxLength) || Infinity;
             
+            
             for (let i = state.chatHistory.length - 1; i >= 0; i--) {
                 const msg = state.chatHistory[i];
-                const content = msg.compressed ? `[已经经过压缩]{${msg.compressed}}` : msg.content;
+                if (msg.ignored) {
+                    continue;
+                }
+                const content = !origin && msg.compressed ? `[已经经过压缩]{${msg.compressed}}` : msg.content;
                 const msgLength = content.length * 2;
                 if (currentLength + msgLength > maxLength) {
                     break;
@@ -1290,9 +1335,8 @@ function processContextV2(input, template) {
             }
             return historyText.trim();
         },
-
+        ocontext: (maxLength) => this.context(maxLength, true),
         var: (varName) => state.variables[varName] || '',
-
         js: (code) => {
             try {
                 return eval(code);
@@ -1416,7 +1460,7 @@ async function callAPI(messages, options = {}) {
     }
 }
 
-async function sendMessage() {
+async function sendMessage(template = '', endpoint = 'main') {
     // if state.variables contains 'auto.send.before'
     // executeVariableWith('auto.send.before') before everything
     executeVariableWith('auto.chat.before');
@@ -1425,7 +1469,7 @@ async function sendMessage() {
     document.getElementById('message-input').value = '';
     let processedContext, contextMessages;
     try {
-        processedContext = processContextV2(input);
+        processedContext = processContextV2(input, template || state.context);
         contextMessages = parseMessages(processedContext);
     }  catch (error) {
         console.error('API call failed:', error);
@@ -1448,7 +1492,7 @@ async function sendMessage() {
     // 添加初始空的助手消息
     const assistantMessage = {
         role: 'assistant',
-        name: state.model,
+        name: AIHub.getConfig(endpoint).model,
         content: '',
         reasoning_content: '',
         timestamp: Date.now()
@@ -1465,16 +1509,18 @@ async function sendMessage() {
         
 
         // 调用API
-        await AIHub.callAPI('main', contextMessages, {
+        await AIHub.callAPI(endpoint, contextMessages, {
             stream: true,
             onToken: (token) => {
                 assistantMessage.content += token;
                 assistantMessage.timestamp = Date.now();
+                assistantMessage.name = AIHub.getConfig('main').model;
                 renderMessages();
             },
             onReason: (token) => {
                 assistantMessage.reasoning_content += token;
                 assistantMessage.timestamp = Date.now();
+                assistantMessage.name = AIHub.getConfig('main').model;
                 renderMessages();
             },
             onError: (error) => {
@@ -1494,7 +1540,7 @@ async function sendMessage() {
 
     saveState();
 }
-async function continueMessage() {
+async function continueMessage(endpoint = 'main') {
     executeVariableWith('auto.chat.before');
     executeVariableWith('auto.continue.before');
     
@@ -1522,18 +1568,20 @@ async function continueMessage() {
 
     
     try {
-        await AIHub.callAPI('main', processedMessages, {
+        await AIHub.callAPI(endpoint, processedMessages, {
             stream: true,
             onToken: (token) => {
                 continuedMessage.content += token;
                 state.chatHistory[state.chatHistory.length - 1].content = continuedMessage.content;
                 state.chatHistory[state.chatHistory.length - 1].timestamp = Date.now();
+                state.chatHistory[state.chatHistory.length - 1].name = AIHub.getConfig('main').model;
                 renderMessages();
             },
             onReason: (token) => {
                 continuedMessage.reasoning_content += token;
                 state.chatHistory[state.chatHistory.length - 1].reasoning_content = continuedMessage.reasoning_content;
                 state.chatHistory[state.chatHistory.length - 1].timestamp = Date.now();
+                state.chatHistory[state.chatHistory.length - 1].name = AIHub.getConfig('main').model;
                 renderMessages();
             },
             onError: (error) => {
@@ -1553,7 +1601,7 @@ async function continueMessage() {
     saveState();
 }
 
-async function nextMessage() {
+async function nextMessage(endpoint = 'main') {
     executeVariableWith('auto.chat.before');
     executeVariableWith('auto.next.before');
     
@@ -1573,8 +1621,6 @@ async function nextMessage() {
     state.chatHistory.push(assistantMessage);
     renderMessages();
     
-    
-    
     // 修改最后一条消息的格式
     const lastProcessedMessage = {
         role: 'assistant',
@@ -1585,16 +1631,18 @@ async function nextMessage() {
     processedMessages.push(lastProcessedMessage);
     
     try {
-        await AIHub.callAPI('main', processedMessages, {
+        await AIHub.callAPI(endpoint, processedMessages, {
             stream: true,
             onToken: (token) => {
                 assistantMessage.content += token;
                 assistantMessage.timestamp = Date.now();
+                assistantMessage.name = AIHub.getConfig('main').model;
                 renderMessages();
             },
             onReason: (token) => {
                 assistantMessage.reasoning_content += token;
                 assistantMessage.timestamp = Date.now();
+                assistantMessage.name = AIHub.getConfig('main').model;
                 renderMessages();
             },
             onError: (error) => {
@@ -1704,8 +1752,13 @@ async function updateVariable(inputVar, outputVar) {
             onToken: (token, fullContent) => {
                 display.setContent(fullContent);
             },
+            onSetup: (abortHandler) => {
+                display.setAbort(() => abortHandler.abort());
+            },
+            
             onError: (err) => {
                 pageAlert(err);
+                renderVariableSelect();
                 display.dismiss();
             },
             onComplete: (content) => {
@@ -1723,6 +1776,7 @@ async function updateVariable(inputVar, outputVar) {
                 }
                 saveState()
                 display.dismiss();
+                renderVariableSelect();
             }
         });
     } catch (error) {
@@ -1761,6 +1815,7 @@ async function updateVariable(inputVar, outputVar) {
     <script src='callAPI.js'></script>
     <script src='aihub.js'></script>
     <script src='keyhub.js'></script>
+    <script src='aiterm.js'></script>
     <script type=module> 
         import FileSystem from './filesystem.js'
         window.FileSystem = FileSystem

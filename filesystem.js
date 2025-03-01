@@ -125,29 +125,64 @@ class FileSystemInput extends FileSystem {
         return new Promise((resolve, reject) => {
             const input = document.createElement('input');
             input.type = 'file';
-            input.accept = this.options.accept || '*'; // Allow specifying accepted file types
+            input.accept = this.options.accept || '*';
 
-            input.onchange = (event) => {
+            input.onchange = async (event) => {
                 const file = event.target.files[0];
 
-                /*if (file && file.name === filename) {*/
-                    const reader = new FileReader();
+                if (!file) {
+                    reject(new Error("没有选择文件喵!"));
+                    return;
+                }
 
-                    reader.onload = (e) => {
-                        resolve(e.target.result);
+                const reader = new FileReader();
+
+                reader.onload = async (e) => {
+                    const arrayBuffer = e.target.result;
+                    const mimeType = file.type || 'application/octet-stream'; // 获取文件的 MIME 类型，或者使用默认值
+
+                    const blob = new Blob([arrayBuffer], { type: mimeType });
+
+                    const blobFunc = async () => blob;
+
+                    const textFunc = async () => {
+                        return new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result);
+                            reader.onerror = reject;
+                            reader.readAsText(blob);
+                        });
                     };
 
-                    reader.onerror = (e) => {
-                        reject(e);
+                    const loadzipFunc = async () => {
+                        if (typeof JSZip === 'undefined') {
+                            throw new Error("JSZip 未定义喵! 需要先引入 JSZip 库哦!");
+                        }
+                        try {
+                            const zip = await JSZip.loadAsync(blob);
+                            return zip;
+                        } catch (error) {
+                            throw new Error("加载 JSZip 失败喵!" + error.message);
+                        }
                     };
 
-                    reader.readAsText(file); // Or readAsDataURL, readAsArrayBuffer based on file type
-                /*} else {
-                    reject(new Error(`File "${filename}" not selected.`));
-                }*/
+                    resolve({
+                        blob: blobFunc,
+                        text: textFunc,
+                        loadzip: loadzipFunc,
+                        json: async () => JSON.parse(await textFunc()),
+                    });
+
+                };
+
+                reader.onerror = (e) => {
+                    reject(e);
+                };
+
+                reader.readAsArrayBuffer(file); // 使用 readAsArrayBuffer
             };
 
-            input.click(); // Programmatically trigger the file selection dialog
+            input.click();
         });
     }
 

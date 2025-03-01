@@ -1,28 +1,48 @@
 const AIHub = {
     root: {},
-    config: {}, // 保存所有 AI 配置的引用
-    onUpdate: null, // 配置更新时的回调函数
-    configs: {}, // 保存所有 AI 配置 (name 作为 key)
+    onUpdate: function() {
+        /*
+        // some config has different names, correctify them
+        const copy = JSON.parse(JSON.stringify(this.configs));
+        this.root.configs = this.configs = {};
+        for (let key of Object.keys(copy)) {
+            this.configs[copy[key].uuid] = copy[key];
+        }
+        if (this.onSubUpdate) { 
+            this.onSubUpdate(); 
+        }*/
+    },
+    get config() {
+        return this.root.config;
+    },
+    set config(value) {
+        this.root.config = value;
+        this.onUpdate();
+    },
+    get configs() {
+        return this.root.configs;
+    },
+    set configs(value) {
+        this.root.configs = value;
+        this.onUpdate();
+    },
     knownModels: {},
     setConfig: function(root) {
-        this.root = root;
-        root.config = root.config || {
-            /*'main': {
-                name: 'main',
-            },
-            'variables': {
-                name: 'main',
-            },
-            'compress': {
-                name: 'main',
-            }*/
-        };
-        root.configs = root.configs || {};
-        this.config = root.config;
-        this.configs = root.configs;
+        this.root = root || {
+            config: {},
+            configs: {}
+        }
+    },
+    serialize: function() {
+        return JSON.stringify(this.root);
+    },
+    deserialize: function(data) {
+        this.root = JSON.parse(data);
+        this.setConfig(this.root);
+        this.onUpdate();
     },
     setOnUpdate: function(callback) {
-        this.onUpdate = callback;
+        this.onSubUpdate = callback;
     },
     drawButton: function(element, key) {
         // if element tag is already button
@@ -53,7 +73,7 @@ const AIHub = {
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                z-index: 1000;
+                z-index: 100000;
             ">
                 <div style="
                     background: white;
@@ -119,7 +139,7 @@ const AIHub = {
             if (this.config[key] && this.config[key].name) {
                 configNameSelect.value = this.config[key].name;
             }
-
+            this.renderConfigList(element); // 重新渲染列表
         });
 
         // ESC键关闭功能
@@ -146,7 +166,7 @@ const AIHub = {
         Object.keys(this.configs).forEach(configName => {
             const option = document.createElement('option');
             option.value = configName;
-            option.textContent = configName;
+            option.textContent = this.configs[configName].name + " (" + this.configs[configName].model + ")";
             selectElement.appendChild(option);
         });
 
@@ -171,33 +191,50 @@ const AIHub = {
                 align-items: center;
             `;
             configItem.innerHTML = `
-                <span>${config.name} - ${config.model}</span>
+                <span title="${config.uuid}">${config.name} - ${config.model}</span>
                 <div>
-                    <button data-name="${configName}" data-action="edit" style="margin-right: 5px;">编辑</button>
-                    <button data-name="${configName}" data-action="delete">删除</button>
+                    <button data-uuid="${configName}" data-action="edit" style="margin-right: 5px;">编辑</button>
+                    <button data-uuid="${configName}" data-action="delete">删除</button>
+                    <button data-uuid="${configName}" data-action="copy">复制</button>
                 </div>
             `;
             element.appendChild(configItem);
 
             // 编辑和删除按钮事件
-            configItem.querySelector('[data-action="edit"]').addEventListener('click', (e) => {
-                const name = e.target.dataset.name;
-                this.showConfigEditModal(element, this.configs[name]);
+            configItem.querySelector('[data-action="edit"]').addEventListener('click', async (e) => {
+                await this.showConfigEditModal(element, config);
+                if (this.onUpdate) this.onUpdate();
+                this.renderConfigList(element, configNameSelect); // 重新渲染列表
+                this.populateConfigNameSelect(configNameSelect);
+                
             });
             configItem.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
                 if (confirm('确定要删除这个配置吗？')) {
-                    const name = e.target.dataset.name;
-                    delete this.configs[name];
-                    this.renderConfigList(element); // 重新渲染列表
-                    this.populateConfigNameSelect(configNameSelect);
+                    delete this.configs[config.uuid];
                     if (this.onUpdate) this.onUpdate();
+                    this.renderConfigList(element, configNameSelect); // 重新渲染列表
+                    this.populateConfigNameSelect(configNameSelect);
+                    
                 }
             });
+            configItem.querySelector('[data-action="copy"]').addEventListener('click', (e) => {
+                if (confirm('确定要复制这个配置吗？')) {
+                    const uuid = crypto.randomUUID();
+                    this.configs[uuid] = JSON.parse(JSON.stringify(config));
+                    this.configs[uuid].uuid = uuid;
+                    this.configs[uuid].name += "_copy";
+                    if (this.onUpdate) this.onUpdate();
+                    this.renderConfigList(element, configNameSelect); // 重新渲染列表
+                    this.populateConfigNameSelect(configNameSelect);
+                    
+                }
+            })
         });
     },
    showConfigEditModal: async function(configList, config = null) {
         return new Promise((resolve, reject) => {
             const isEdit = config !== null;
+            const uuid = config == null ? crypto.randomUUID() : (config.uuid || crypto.randomUUID());
             const modalHtml = `
                 <div data-id="configEditModal" style="
                     position: fixed;
@@ -209,7 +246,7 @@ const AIHub = {
                     display: flex;
                     justify-content: center;
                     align-items: center;
-                    z-index: 1001;
+                    z-index: 100004;
                 ">
                     <div style="
                         background: white;
@@ -352,10 +389,7 @@ const AIHub = {
 
                 try {
                     const models = await this.fetchModelsFromURI(uri, selectKeyButton.dataset.key);
-                    const modelList = models.map(model => ({
-                        id: model,
-                        text: model
-                    }));
+                    const modelList = models;
                     const selectedModel = await generalSelect(modelList, "请选择模型", null, selectModelButton.dataset.model || null);
                     selectModelButton.textContent = `模型: ${selectedModel}`;
                     selectModelButton.dataset.model = selectedModel
@@ -425,19 +459,21 @@ const AIHub = {
                     password: password,
                     model: model,
                     stream: stream,
-                    parameters: parameters
+                    parameters: parameters,
+                    uuid: uuid,
                 };
 
                 if (isEdit) {
                     Object.assign(config, newConfig);
                 } else {
-                    this.configs[name] = newConfig;
+                    this.configs[uuid] = newConfig;
                 }
 
                 this.renderConfigList(configList); // 重新渲染列表
                 document.body.removeChild(modalContainer);
-                resolve();
                 if (this.onUpdate) this.onUpdate();
+                resolve();
+                
             });
 
                     // ESC键关闭功能
@@ -498,7 +534,7 @@ const AIHub = {
             }
 
             const data = await response.json();
-            const models = data.data.map(model => model.owned_by === 'google' ? model.id.replace('models/', '') : model);
+            const models = data.data.map(model => model.owned_by === 'google' ? {id: model.id.replace('models/', '')} : {id: model.id, text: model.name});
             this.knownModels[uri] = models
             return models;
         } catch (error) {
@@ -537,6 +573,7 @@ const AIHub = {
             onComplete = null,
             onError = null,
             onReason = null,
+            onSetup = null,
         } = callbacks;
 
         if (config.uri === 'main') {
@@ -545,7 +582,8 @@ const AIHub = {
                 onToken,
                 onComplete,
                 onError,
-                onReason
+                onReason,
+                onSetup,
             }) // use main api
         }
 
@@ -619,11 +657,16 @@ const AIHub = {
             if (password == null) {
                 delete headers['Authorization'];
             }
+            const abortHandler = new AbortController();
             const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify(requestBody)
+                body: JSON.stringify(requestBody),
+                signal: abortHandler.signal,
             });
+            if (onSetup) {
+                onSetup(abortHandler);
+            }
             
 
             if (!response.ok) {
@@ -666,14 +709,14 @@ const AIHub = {
                                     fullContent += token;
                                     if (onToken) onToken(token, fullContent);
                                 }
-                                if (json.choices && json.choices[0].delta && json.choices[0].delta.reasoning_content) {
-                                    const token = json.choices[0].delta.reasoning_content;
+                               if (json.choices && json.choices[0].delta && (json.choices[0].delta.reasoning_content || json.choices[0].delta.reasoning)) {
+                                    const token = json.choices[0].delta.reasoning_content || json.choices[0].delta.reasoning;
                                     fullReason += token;
                                     if (onReason) {
                                         onReason(token, fullReason);
                                     } else {
-                                        if (onToken) onToken(token,
-                                            '<think>' + fullReason + '</think>' + fullContent);
+                                        if (onToken) onToken(token, 
+                                        '<think>' + fullReason + '</think>' + fullContent);
                                     }
                                 }
                             } catch (e) {
@@ -697,7 +740,7 @@ const AIHub = {
             throw error;
         }
     },
-    previewStream: function() {
+    previewStream: function(abortFunc) {
         const compressInfoDiv = document.createElement('div');
         compressInfoDiv.style.cssText = `
             position: fixed;
@@ -710,18 +753,75 @@ const AIHub = {
             border-radius: 8px;
             z-index: 100000;
             font-size: 16px;
+            height: 60vh;
+            overflow-y: scroll;
+            width: 80vw;
         `;
         compressInfoDiv.textContent = '';
+        const inner = document.createElement('pre')
+        inner.style.cssText = `
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        `;
+        const closeButton = document.createElement("button")  
+        closeButton.textContent = "X";
+        closeButton.style.cssText = `
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #e74c3c; /* 鲜艳的红色 */
+            border: none;
+            color: white;
+            font-size: 16px;
+            border-radius: 4px;
+            padding: 5px 10px; /* 增加内边距，让按钮更大 */
+            font-weight: bold; /* 加粗文字 */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* 增加阴影 */
+            transition: background-color 0.2s ease; /* 添加过渡效果 */
+        `;
+        compressInfoDiv.appendChild(closeButton);
+        let removed = false;      
+        closeButton.addEventListener("click", () => {
+            if (abortFunc) {
+                abortFunc();
+                if (!removed) {
+                    compressInfoDiv.remove();
+                    removed = true;
+                }
+            }
+        });
+        
+        if (!abortFunc) {
+            closeButton.disabled = true;
+            closeButton.style.background = 'gray';
+        }
+
+        compressInfoDiv.appendChild(inner);        
         document.body.appendChild(compressInfoDiv);
+        
 
         return {
+            setAbort: function(func) {
+                abortFunc = func;
+                if (func) {
+                    closeButton.disabled = false;
+                    closeButton.style.background = 'blue';
+                } else {
+                    closeButton.disabled = true;
+                    closeButton.style.background = 'gray';
+                }
+            },
             setContent: function(content) {
-                compressInfoDiv.textContent = content;
+                inner.textContent = content;
             },
             dismiss: function() {
-                document.body.removeChild(compressInfoDiv);
+                if (!removed) {
+                    document.body.removeChild(compressInfoDiv);
+                    removed = true;    
+                }
+                
             }
         };
-    }
-
+    },
+    
 };
