@@ -218,7 +218,7 @@ background: white;
 padding: 1rem;
 border-radius: 0.5rem;
 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-z-index: 1000;
+z-index: 100000;
 width: 80%;
 max-width: 500px;
 `;
@@ -261,7 +261,7 @@ left: 0;
 right: 0;
 bottom: 0;
 background: rgba(0,0,0,0.5);
-z-index: 999;
+z-index: 100000;
 `;
 
     // 添加到文档
@@ -338,7 +338,7 @@ async function compress(originText, previous) {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 100000;
   `;
 
   // Create modal content

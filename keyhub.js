@@ -28,7 +28,7 @@ const KeyHub = window.KeyHub = {
                     display: flex;
                     justify-content: center;
                     align-items: center;
-                    z-index: 100001;
+                    z-index: 100000;
                     font-family: 'Arial', sans-serif;
                     color: #333;
                 ">
@@ -187,7 +187,7 @@ const KeyHub = window.KeyHub = {
                         display: flex;
                         justify-content: center;
                         align-items: center;
-                        z-index: 10002;
+                        z-index: 100000;
                         font-family: 'Arial', sans-serif;
                         color: #333;
                     ">

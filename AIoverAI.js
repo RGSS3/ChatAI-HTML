@@ -11,7 +11,7 @@ async function makeCopyContentButton(div, scenario = null) {
         border-radius: 4px;
         padding: 2px 6px;
         cursor: pointer;
-        z-index: 10000;
+        z-index: 100000;
         font-size: 14px;
     `;
 
@@ -110,7 +110,7 @@ async function primitiveAI(query) {
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
+      z-index: 100000;
     `;
 
     // Create modal content
@@ -337,7 +337,7 @@ async function pageAlert(content, title = '') {
         padding: 15px 25px;
         border-radius: 8px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        z-index: 10001;
+        z-index: 100000;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -397,7 +397,7 @@ async function generalSelect(list = [], title = "请选择一项", defaultValue 
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                z-index: 10000;
+                z-index: 100000;
                 font-family: 'Arial', sans-serif;
                 color: #333;
             ">
@@ -432,7 +432,7 @@ async function generalSelect(list = [], title = "请选择一项", defaultValue 
                             overflow-y: auto;
                             display: none; /* 初始状态隐藏 */
                             position: absolute;
-                            z-index: 10001;
+                            z-index: 100000;
                             width: calc(100% - 2px); /* 减去边框宽度 */
                         "></ul>
                     </div>
@@ -561,3 +561,227 @@ async function generalSelect(list = [], title = "请选择一项", defaultValue 
     });
 }
 
+
+
+async function pagePrompt(title, initialText = '', options = {}) {
+    return new Promise((resolve, reject) => {
+        const {
+            confirmText = '确认',
+            cancelText = '取消',
+            onConfirm = null,
+            onCancel = null,
+            width = '90%',
+            maxWidth = '800px',
+            maxHeight = '90vh',
+        } = options;
+
+        const modalHtml = `
+            <div data-id="pagePrompt" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 100000;
+            ">
+                <div style="
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    width: ${width};
+                    max-width: ${maxWidth};
+                    max-height: ${maxHeight};
+                    overflow-y: auto;
+                    box-sizing: border-box;
+                ">
+                    <h3 style="margin-bottom: 10px;">${title}</h3>
+                    <textarea data-id="textInput" style="
+                        width: 100%;
+                        padding: 10px;
+                        border: 1px solid #ccc;
+                        border-radius: 5px;
+                        margin-bottom: 15px;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                        resize: vertical;
+                        min-height: 150px;
+                    ">${initialText}</textarea>
+                    <div style="
+                        display: flex;
+                        justify-content: flex-end;
+                    ">
+                        <button data-id="confirmButton" style="
+                            background-color: #5cb85c;
+                            color: white;
+                            padding: 10px 15px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            margin-right: 10px;
+                        ">${confirmText}</button>
+                        <button data-id="cancelButton" style="
+                            background-color: #d9534f;
+                            color: white;
+                            padding: 10px 15px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                        ">${cancelText}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
+
+        const textInput = modalContainer.querySelector('[data-id="textInput"]');
+        const confirmButton = modalContainer.querySelector('[data-id="confirmButton"]');
+        const cancelButton = modalContainer.querySelector('[data-id="cancelButton"]');
+        textInput.focus();
+
+        // textInput按ctrl-enter时
+        textInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                e.preventDefault();
+                confirmButton.click();
+            }
+        });
+
+        // 确认按钮事件
+        confirmButton.addEventListener('click', () => {
+            const newText = textInput.value;
+            document.body.removeChild(modalContainer);
+            resolve(newText);
+            if (onConfirm) onConfirm(newText);
+        });
+
+        // 取消按钮事件
+        cancelButton.addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+            reject('取消');
+            if (onCancel) onCancel();
+        });
+
+        // ESC键关闭功能
+        document.addEventListener('keydown', function escListener(e) {
+            if (e.key === 'Escape') {
+                document.body.removeChild(modalContainer);
+                document.removeEventListener('keydown', escListener);
+                reject('取消');
+            }
+        });
+
+        // 移除弹窗
+        modalContainer.addEventListener('click', (e) => {
+            if (e.target === modalContainer) {
+                document.body.removeChild(modalContainer);
+                reject('取消');
+            }
+        });
+    });
+}
+
+async function pageConfirm(title, message = '', options = {}) {
+    return new Promise((resolve) => {
+        const {
+            confirmText = '确认',
+            cancelText = '取消',
+            width = '90%',
+            maxWidth = '600px',
+            maxHeight = '90vh',
+        } = options;
+
+        const modalHtml = `
+            <div data-id="pageConfirm" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 100000;
+            ">
+                <div style="
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    width: ${width};
+                    max-width: ${maxWidth};
+                    max-height: ${maxHeight};
+                    overflow-y: auto;
+                    box-sizing: border-box;
+                ">
+                    <h3 style="margin-bottom: 10px;">${title}</h3>
+                    <p style="margin-bottom: 15px; font-size: 16px;">${message}</p>
+                    <div style="
+                        display: flex;
+                        justify-content: flex-end;
+                    ">
+                        <button data-id="confirmButton" style="
+                            background-color: #5cb85c;
+                            color: white;
+                            padding: 10px 15px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            margin-right: 10px;
+                        ">${confirmText}</button>
+                        <button data-id="cancelButton" style="
+                            background-color: #d9534f;
+                            color: white;
+                            padding: 10px 15px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                        ">${cancelText}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
+
+        const confirmButton = modalContainer.querySelector('[data-id="confirmButton"]');
+        const cancelButton = modalContainer.querySelector('[data-id="cancelButton"]');
+
+        // 确认按钮事件
+        confirmButton.addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+            resolve(true);
+        });
+
+        // 取消按钮事件
+        cancelButton.addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+            resolve(false);
+        });
+
+        // ESC键关闭功能
+        document.addEventListener('keydown', function escListener(e) {
+            if (e.key === 'Escape') {
+                document.body.removeChild(modalContainer);
+                document.removeEventListener('keydown', escListener);
+                resolve(false);
+            }
+        });
+
+        // 移除弹窗
+        modalContainer.addEventListener('click', (e) => {
+            if (e.target === modalContainer) {
+                document.body.removeChild(modalContainer);
+                resolve(false);
+            }
+        });
+    });
+}
