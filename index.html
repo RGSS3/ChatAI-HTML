@@ -109,6 +109,10 @@
                 context: defaultContext,
                 bearer: '', // 添加bearer token
                 title: '',
+                aihubconfig: {
+                    config: {},
+                    configs: {},
+                },
                 parameters: [
                     { name: 'top_k', value: '50', range: '0-100' },
                     { name: 'top_p', value: '0.7', range: '0.0-1.0' },
@@ -142,8 +146,6 @@
         }
 
         function updateAIHub() {
-            state.aihubconfig = state.aihubconfig || {}
-            AIHub.setConfig(state.aihubconfig);
             AIHub.setOnUpdate(() => {
                 saveState();
             });

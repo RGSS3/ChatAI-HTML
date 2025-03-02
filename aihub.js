@@ -1,16 +1,15 @@
 const AIHub = {
-    root: {},
+    get root() {
+        return state.aihubconfig;
+    },
+    set root(value) {
+        state.aihubconfig = value;
+        this.onUpdate();
+    },
     onUpdate: function() {
-        /*
-        // some config has different names, correctify them
-        const copy = JSON.parse(JSON.stringify(this.configs));
-        this.root.configs = this.configs = {};
-        for (let key of Object.keys(copy)) {
-            this.configs[copy[key].uuid] = copy[key];
-        }
         if (this.onSubUpdate) { 
             this.onSubUpdate(); 
-        }*/
+        }
     },
     get config() {
         return this.root.config;
@@ -246,7 +245,7 @@ const AIHub = {
                     display: flex;
                     justify-content: center;
                     align-items: center;
-                    z-index: 100004;
+                    z-index: 100000;
                 ">
                     <div style="
                         background: white;
