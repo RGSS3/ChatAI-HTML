@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadState();
     initializeUI();
     initializeVariables();
-    
+    AITerm.initState();
     const keys = localStorage.getItem('keys');
     if (keys) {
         try {

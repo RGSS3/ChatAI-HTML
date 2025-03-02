@@ -1,20 +1,52 @@
 const AITerm = {
     term: null,
     modal: null,
-    user: 'user',
-    ai: 'assistant',
-    prompt: '你是一个终端AI助手，如果存在自定义记忆和角色，按照记忆和角色来表演或者回答，否则按照默认回答来回答',
+
     configName: 'terminal',
-    command: '',
-    content: '',
-    memoryBox: '',
     inputing: true,
-    initHandler: false,
+    
+    initState: function() {
+        console.log('initState');
+        const self = this;
+        const keys = ['user', 'ai', 'prompt', 'command', 'content', 'memoryBox'];
+
+        keys.forEach(key => {
+            Object.defineProperty(self, key, {
+                get() {
+                    return state.aiterm[key];
+                },
+                set(newValue) {
+                    state.aiterm[key] = newValue;
+                    saveState();
+                }
+            });
+        });
+        if (state.aiterm == undefined) {
+            state.aiterm = {}
+            this.clearState();
+        }
+    },
+    clearState: function() {
+        const defaultState = {
+                user: 'user',
+                ai: 'assistant',
+                prompt: '你是一个终端AI助手，如果存在自定义记忆和角色，按照记忆和角色来表演或者回答，否则按照默认回答来回答',
+                command: '',
+                content: '',
+                memoryBox: ''
+        };
+        if (state.aiterm == undefined) {
+            state.aiterm = {}
+        }
+        Object.assign(state.aiterm, defaultState);
+        saveState();
+    },
     init: function () {
-        this.command = '';
-        this.content = '';
+        // this.command = '';
+        // this.content = '';
+        // this.inputing = true;
+        // this.memoryBox = '';
         this.inputing = true;
-        this.memoryBox = '';
         this.initHandler = false;
     },
 
@@ -120,6 +152,9 @@ const AITerm = {
             align-items: center;
             border-top: 1px solid #ccc;
         `
+
+       
+        
         const configBtn = document.createElement('button');
         configBtn.textContent = '配置AI';
         configBtn.addEventListener('click', () => {
@@ -187,8 +222,15 @@ const AITerm = {
         fitAddon.fit();
         this.term.focus();
 
+         const resetBtn = document.createElement('button');
+        resetBtn.textContent = '重置';
+        resetBtn.addEventListener('click', () => {
+            this.clearState();
+            this.resetTerminal();
+        });
+        buttonBar.appendChild(resetBtn);
         this.resetTerminal();
-
+        
         window.addEventListener('resize', () => fitAddon.fit());
     },
     exit: function() {
@@ -269,6 +311,8 @@ const AITerm = {
             如果以上设定是一个人物 那就进行角色扮演 沉浸式 不要专业性 而更突出人物张力和情感和角色设定 此时 硬核情节软写 软核情节直接写
             (包括：如果记忆盒内是一个Character.ai人物卡，则按照人物卡进行角色扮演)
             如果以上设定是一个工具 才保持专业性
+
+            {{user}}=${this.user}, 默认用中文回复，或根据用户的语言回复，不要替用户写或者会说话
 
             `
         }, {
@@ -526,4 +570,5 @@ async function executePythonCode(code, term, content) {
             reject(error);
         }
     });
-}
+};
+

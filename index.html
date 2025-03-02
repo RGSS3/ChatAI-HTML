@@ -113,6 +113,15 @@
                     config: {},
                     configs: {},
                 },
+                aiterm: {
+                    initHandler: false,
+                    user: 'user',
+                    ai: 'assistant',
+                    prompt: '你是一个终端AI助手，如果存在自定义记忆和角色，按照记忆和角色来表演或者回答，否则按照默认回答来回答',
+                    command: '',
+                    content: '',
+                    memoryBox: '',
+                },
                 parameters: [
                     { name: 'top_k', value: '50', range: '0-100' },
                     { name: 'top_p', value: '0.7', range: '0.0-1.0' },
@@ -133,7 +142,8 @@
         let state = defaultState();
         state.compress = state.compress || {
             cache: {}
-        }
+        };
+        
         
 
         // 从localStorage加载状态
