@@ -720,6 +720,7 @@ const AIHub = {
                                 }
                             } catch (e) {
                                 console.warn('Failed to parse JSON:', jsonStr);
+                                console.error(e);
                             }
                         }
                     }
@@ -739,7 +740,9 @@ const AIHub = {
             throw error;
         }
     },
-    previewStream: function(abortFunc) {
+    previewStream: function(abortFunc = null, 
+        displayOnData = true
+    ) {
         const compressInfoDiv = document.createElement('div');
         compressInfoDiv.style.cssText = `
             position: fixed;
@@ -756,6 +759,9 @@ const AIHub = {
             overflow-y: scroll;
             width: 80vw;
         `;
+        if (displayOnData) {
+            compressInfoDiv.style.zIndex = -2;
+        }
         compressInfoDiv.textContent = '';
         const inner = document.createElement('pre')
         inner.style.cssText = `
@@ -812,6 +818,15 @@ const AIHub = {
             },
             setContent: function(content) {
                 inner.textContent = content;
+                if (displayOnData) {
+                    compressInfoDiv.style.zIndex = content ? 100000 : -2;
+                }
+            },
+            hide: function() {
+                compressInfoDiv.style.zIndex = -2;
+            },
+            show: function() {
+                compressInfoDiv.style.zIndex = 100000;
             },
             dismiss: function() {
                 if (!removed) {

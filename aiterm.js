@@ -294,15 +294,16 @@ const AITerm = {
         this.term.writeln(`提示语已设置为 ${this.prompt}`);
     },
     sendToAI: async function(message) {
-        const prompt = `[xterm.js文本框所有消息]
+        const prompt = `历史消息
         ${this.history || ''}
         `;
 
         const messages = [{
             role: 'system',
-            content: `这是一个类似终端环境，不要用markdown写回复, 但你可以用转义字符(escape char)输出颜色
+            content: `客户端类似终端环境，有xterm.js处理，不要用markdown写回复, 但你可以用转义字符(escape char)输出颜色
             这里需要输出\\e的地方，输出一个ÿ
-            例如ÿ[32mhello worldÿ[0m
+            例如ÿ[44mÿ[38;5;131mhello worldÿ[0m
+            
 
             自定义设定：${this.prompt} 自定义设定结束
 
@@ -312,36 +313,55 @@ const AITerm = {
             (包括：如果记忆盒内是一个Character.ai人物卡，则按照人物卡进行角色扮演)
             如果以上设定是一个工具 才保持专业性
 
-            {{user}}=${this.user}, 默认用中文回复，或根据用户的语言回复，不要替用户写或者会说话
+            {{user}}=${this.user}, 默认用中文回复，或根据用户的语言回复，不要替用户写或者说话
 
             `
         }, {
             role: 'user',
-            content: prompt + message
+            content: prompt + `\n\n${this.user}:` + message
         }, {
             role: 'assistant',
-            content: `${this.ai} >>>`
+            content: `${this.ai}:`
         }];
-        this.content += `${this.user} >>> ${message} \n\n` + `${this.ai} >>>\n\n`;
+        this.content += `${this.user}: ${message} \n\n` + `${this.ai}:\n\n`;
 
-        this.term.write(`${this.ai} >>> `);
+        this.term.write(`${this.ai}: `);
         let fullContent = '';
+        let preview = AIHub.previewStream();
+        let content = '';
 
         await AIHub.callAPI(this.configName, messages, {
             stream: true,
+            onSetup: (abortHandler) => {
+                preview.setAbort(abortHandler);
+            },
+            onReason: (reason) => {
+                preview.setContent(content += reason);
+                if (content) {
+                    preview.show();
+                }
+            },
             onToken: (token) => {
+                token = token.replace(/ÿ/g, "\x1b");
                 this.content += token;
-                token = token.replace(/\r?\n\r?/, "\n\r").replace(/ÿ/g, "\x1b");
+                token = token.replace(/\r?\n\r?/, "\n\r")
+                if (token) {
+                    preview.hide();
+                }
+
                 this.term.write(token);
                 fullContent += token;
             },
             onComplete: () => {
-                this.term.writeln('');
+                this.term.writeln('\x1b[0m\n');
+                this.content += '\x1b[0m\n';
                 this.inputing = true;
+                preview.dismiss()
             },
             onError: (err) => {
                 this.term.write(`\rError: ${err.message}\n\r`);
                 this.inputing = true;
+                preview.dismiss()
             }
         });
     },
@@ -351,8 +371,8 @@ const AITerm = {
         this.term.clear();
         this.term.writeln('欢迎来到 AI 终端！输入 /help 查看帮助。');
         // 打印历史消息
-        this.term.writeln(this.content);
-        this.term.write(`${this.user} >>> `);
+        this.term.writeln(this.content.replace(/ÿ/g, "\x1b"))
+        this.term.write(`${this.user}: `);
         this.command = '';
 
         if (this.initHandler) {
@@ -373,7 +393,7 @@ const AITerm = {
                     this.term.writeln('');
                     await this.processCommand(this.command.trim());
                     this.command = ''; // 重置命令缓冲区
-                    this.term.write(`${this.user} >>> `);
+                    this.term.write(`${this.user}: `);
                 }
             } else if (e === '\x7F') { // Backspace 键
                 if (this.command.length > 0) {
@@ -405,8 +425,12 @@ async function processCommand(command) {
         this.setAI(command.substring(7).trim());
     } else if (command.startsWith('/setprompt')) {
         this.setPrompt(command.substring(11).trim());
-    } else if (command.startsWith('!python')) {
-        this.content += `${this.user} >>> ${command} \n\n`;
+    }  else if (command.startsWith('/add')) {
+        const content = command.substring(4).trim();
+        this.term.write(`\r\n${content}\r\n`)
+        this.content += content;
+    }   else if (command.startsWith('!python')) {
+        this.content += `${this.user}: ${command} \n\n`;
         // 查找最后一块 ```python ... ```
         let initialCode = '';
         const pythonBlockRegex = /```python\s*([\s\S]*?)\s*```/g;
